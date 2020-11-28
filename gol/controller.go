@@ -6,7 +6,7 @@ import (
 	"strings"
 	"bufio"
 	"strconv"
-	"uk.ac.bris.cs/gameoflife/util"
+//	"uk.ac.bris.cs/gameoflife/util"
 )
 
 
@@ -24,6 +24,31 @@ func read(conn *net.Conn) {
 	reader := bufio.NewReader(*conn)
 	msg, _ := reader.ReadString('\n')
 	fmt.Println(msg)
+}
+
+func convertToString(world [][]byte, height int, width int) string {
+	var data []string
+
+	for i := 0; i < height; i++ {
+		for j := 0; j < width; j++ {
+			
+			if world[i][j] == 255 {
+				data = append(data, "1")
+			}
+			if world[i][j] == 0 {
+				data = append(data, "0")
+			}
+			
+			if j != width - 1 {
+				data = append(data, " ")
+			}
+		}
+		data = append (data, "\n")
+	}
+
+	data = append(data, "gata!!\n")
+
+	return strings.Join(data, "")
 }
 
 // distributor divides the work between workers and interacts with other goroutines.
@@ -57,11 +82,12 @@ func controller(p Params, c distributorChannels) {
 		}
 	}
 
-	text := util.MatricesToString(world, nil, p.ImageWidth, p.ImageHeight)
+	//text := util.MatricesToString(world, nil, p.ImageWidth, p.ImageHeight)
+	text := convertToString(world, p.ImageHeight, p.ImageWidth)
 	fmt.Fprintf(conn, text)
     read(&conn)	
 
-}
+	}
 
 
 //	turn := 0
