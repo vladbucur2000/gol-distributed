@@ -6,7 +6,6 @@ import (
 	"strings"
 	"bufio"
 	"strconv"
-//	"uk.ac.bris.cs/gameoflife/util"
 )
 
 
@@ -26,11 +25,34 @@ func read(conn *net.Conn) {
 	fmt.Println(msg)
 }
 
-func convertToString(world [][]byte, height int, width int) string {
+
+func numberToString(nr int) string {
+	return strconv.Itoa(nr)
+}
+
+
+func convertToString(world [][]byte, p Params) string {
 	var data []string
 
-	for i := 0; i < height; i++ {
-		for j := 0; j < width; j++ {
+	hs := numberToString(p.ImageHeight)
+	ws := numberToString(p.ImageWidth)
+	turn := numberToString(p.Turns)
+	thread := numberToString(p.Threads)
+
+
+
+	data = append(data, hs)
+	data = append(data, "\n")
+	data = append(data, ws)
+	data = append(data, "\n")
+	data = append(data, turn)
+	data = append(data, "\n")
+	data = append(data, thread)
+	data = append(data, "\n")
+
+
+	for i := 0; i < p.ImageHeight; i++ {
+		for j := 0; j < p.ImageWidth; j++ {
 			
 			if world[i][j] == 255 {
 				data = append(data, "1")
@@ -39,14 +61,11 @@ func convertToString(world [][]byte, height int, width int) string {
 				data = append(data, "0")
 			}
 			
-			if j != width - 1 {
-				data = append(data, " ")
-			}
 		}
 		data = append (data, "\n")
 	}
 
-	data = append(data, "gata!!\n")
+	data = append(data, "gata!!\t")
 
 	return strings.Join(data, "")
 }
@@ -56,18 +75,13 @@ func controller(p Params, c distributorChannels) {
 
   	conn, _ := net.Dial("tcp", "127.0.0.1:8080")
 	  
-	for {
+//	for {
     //	fmt.Println("Enter text: ")
     //citesc lumea
 	world := make([][]byte, p.ImageHeight)
 	for i := range world {
 		world[i] = make([]byte, p.ImageWidth)
 	  }
-	
-	 /* newWorld := make([][]byte, p.ImageHeight)
-	for i := range newWorld {
-		newWorld[i] = make([]byte, p.ImageWidth)
-	}*/
 
 	c.ioCommand <- ioInput
 
@@ -83,11 +97,15 @@ func controller(p Params, c distributorChannels) {
 	}
 
 	//text := util.MatricesToString(world, nil, p.ImageWidth, p.ImageHeight)
-	text := convertToString(world, p.ImageHeight, p.ImageWidth)
-	fmt.Fprintf(conn, text)
-    read(&conn)	
+	text := convertToString(world, p)
 
+	//fmt.Println(text)
+	fmt.Fprintf(conn, text)
+	for {
+		read(&conn)
 	}
+
+	//}
 
 
 //	turn := 0
