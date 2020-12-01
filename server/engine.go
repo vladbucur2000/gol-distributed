@@ -6,6 +6,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func mod(x, m int) int {
@@ -25,7 +26,7 @@ func calculateNeighbours(ImageHeight, ImageWidth, x, y int, world [][]byte) int 
 	return neighbours
 }
 
-func stringToMatrix(msg string, conn *net.Conn) {
+func stringToMatrix(msg string, conn *net.Conn, KeyChannel chan string) {
 	i := 0
 	height := 0
 	width := 0
@@ -69,7 +70,7 @@ func stringToMatrix(msg string, conn *net.Conn) {
 		nr++
 	}
 
-	playTheGame(height, width, turn, thread, world, conn)
+	playTheGame(height, width, turn, thread, world, conn, KeyChannel)
 
 }
 
@@ -115,7 +116,15 @@ func createTurnComplete(turn int) string {
 	data = append(data, "\n")
 	return strings.Join(data, "")
 }
-
+func createAliveCellsCount(turn, howManyAreAlive int) string {
+	var data []string
+	data = append(data, "acc")
+	data = append(data, strconv.Itoa(turn))
+	data = append(data, " ")
+	data = append(data, strconv.Itoa(howManyAreAlive))
+	data = append(data, "\n")
+	return strings.Join(data, "")
+}
 func worker(originalWorld [][]byte, turn int, ImageHeight, ImageWidth int, start int, end int, height int, outChannel chan byte, inputChannel chan byte, conn *net.Conn) {
 	world := make([][]byte, ImageHeight)
 	for i := range world {
@@ -147,7 +156,6 @@ func worker(originalWorld [][]byte, turn int, ImageHeight, ImageWidth int, start
 				if neighbours == 3 {
 					newWorld[i][j] = 1
 					msg := createCellFlipped(i, j, turn)
-
 					fmt.Fprintln(*conn, msg)
 				} else {
 					newWorld[i][j] = 0
@@ -186,7 +194,47 @@ func myVisualiseMatrix(world [][]byte, ImageWidth, ImageHeight int) {
 	}
 }
 
-func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world [][]byte, conn *net.Conn) {
+func numberToString(nr int) string {
+	return strconv.Itoa(nr)
+}
+
+func sendTheWorld(world [][]byte, ImageHeight, ImageWidth, Turns, Threads int) string {
+	var data []string
+
+	hs := numberToString(ImageHeight)
+	ws := numberToString(ImageWidth)
+	turn := numberToString(Turns)
+	thread := numberToString(Threads)
+
+	data = append(data, hs)
+	data = append(data, "\n")
+	data = append(data, ws)
+	data = append(data, "\n")
+	data = append(data, turn)
+	data = append(data, "\n")
+	data = append(data, thread)
+	data = append(data, "\n")
+
+	for i := 0; i < ImageHeight; i++ {
+		for j := 0; j < ImageWidth; j++ {
+
+			if world[i][j] == 255 {
+				data = append(data, "1")
+			}
+			if world[i][j] == 0 {
+				data = append(data, "0")
+			}
+
+		}
+		data = append(data, "\n")
+	}
+
+	data = append(data, "gata!!\t")
+
+	return strings.Join(data, "")
+}
+
+func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world [][]byte, conn *net.Conn, KeyChannel chan string) {
 
 	workingWorld := make([][]byte, ImageHeight)
 	for i := range world {
@@ -203,14 +251,37 @@ func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world 
 			}
 		}
 	}
-
+	ticker := time.NewTicker(2000 * time.Millisecond)
 	turn := 0
 	for ; turn < Turns; turn++ {
 
-		// select {
-		// //AICI INTRA KEY URILE
-		// default:
-		// }
+		select {
+		//AICI INTRA KEY URILE
+		// case key := <-KeyChannel:
+		// 	if key == "kpauseTheGame" {
+		// 		for {
+		// 			// worldString := sendTheWorld(workingWorld, ImageHeight, ImageWidth, Turns, Threads)
+		// 			// fmt.Fprintln(*conn, worldString)
+		// 			reader2 := bufio.NewReader(*conn)
+		// 			msg2, _ := reader2.ReadString('\t')
+		// 			if msg2 == "kstartTheGame" {
+		// 				break
+		// 			}
+		// 		}
+		// 	}
+		case <-ticker.C:
+			howManyAreAlive := 0
+			for i := 0; i < ImageHeight; i++ {
+				for j := 0; j < ImageWidth; j++ {
+					if workingWorld[i][j] != 0 {
+						howManyAreAlive++
+					}
+				}
+			}
+			msg := createAliveCellsCount(turn, howManyAreAlive)
+			fmt.Fprintln(*conn, msg)
+		default:
+		}
 
 		workerHeight := ImageHeight / Threads
 		outChannel := make([]chan byte, Threads)
@@ -260,13 +331,21 @@ func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world 
 	fmt.Fprintln(*conn, finalTurnCompleteString)
 
 }
-
-func handleConnection(conn *net.Conn) {
+func handleKeyPresses(conn *net.Conn, KeyChannel chan string) {
 	reader := bufio.NewReader(*conn)
+	msg, _ := reader.ReadString('\t')
+	if msg[0] == 'k' {
+		KeyChannel <- msg
+	}
 
+}
+
+func handleConnection(conn *net.Conn, KeyChannel chan string) {
+
+	reader := bufio.NewReader(*conn)
 	msg, _ := reader.ReadString('\t')
 
-	stringToMatrix(msg, conn)
+	stringToMatrix(msg, conn, KeyChannel)
 
 	fmt.Fprintln(*conn, "am primit cumetre")
 
@@ -285,8 +364,8 @@ func main() {
 		if er != nil {
 			fmt.Println("eroare cumetre2")
 		}
-
-		go handleConnection(&conn)
-
+		KeyChannel := make(chan string)
+		go handleConnection(&conn, KeyChannel)
+		//go handleKeyPresses(&conn, KeyChannel)
 	}
 }

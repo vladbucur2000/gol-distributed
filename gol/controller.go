@@ -11,20 +11,68 @@ import (
 )
 
 type distributorChannels struct {
-	events      chan<- Event
-	ioCommand   chan<- ioCommand
-	ioIdle      <-chan bool
-	ioFilename  chan<- string
-	ioInput     <-chan uint8
-	ioOutput    chan<- uint8
-	outputWorld chan<- [][]byte
+	events     chan<- Event
+	ioCommand  chan<- ioCommand
+	ioIdle     <-chan bool
+	ioFilename chan<- string
+	ioInput    <-chan uint8
+	ioOutput   chan<- uint8
+	keyPressed <-chan rune
 }
 
 func read(c distributorChannels, conn *net.Conn) {
 	reader := bufio.NewReader(*conn)
 	for {
 		msg, _ := reader.ReadString('\n')
+
+		// select {
+		//  case key := <-c.keyPressed:
+		// 	if key == 'p' {
+		// 		text := "kpauseTheGame"
+		// 		fmt.Fprintf(*conn, text)
+		// 		msg, _ := reader.ReadString('\n')
+		// 		i := 0
+		// 		turn := 0
+		// 		for i < len(msg) && msg[i] != ' ' {
+		// 			turn = turn*10 + (int(msg[i]) - '0')
+		// 			i++
+		// 		}
+		// 		c.events <- StateChange{
+		// 			turn,
+		// 			Paused,
+		// 		}
+		// 		for {
+		// 			key2nd := <-c.keyPressed
+		// 			if key2nd == 'p' {
+		// 				text := "kstartTheGame"
+		// 				fmt.Fprintf(*conn, text)
+		// 			}
+		// 			break
+
+		// 		}
+		// 	}
+		// default:
+		// }
 		//CELLFLIPPED RECEIVED
+		if msg[0] == 'a' && msg[1] == 'c' && msg[2] == 'c' {
+			i := 3
+			turn := 0
+			howManyAreComplete := 0
+			for i < len(msg) && msg[i] != ' ' {
+				turn = turn*10 + (int(msg[i]) - '0')
+				i++
+			}
+			i++
+			for i < len(msg) && msg[i] != '\n' {
+				howManyAreComplete = howManyAreComplete*10 + (int(msg[i]) - '0')
+				i++
+			}
+			fmt.Println(howManyAreComplete)
+			c.events <- AliveCellsCount{
+				turn,
+				howManyAreComplete,
+			}
+		}
 		if msg[0] == 'c' && msg[1] == 'f' {
 			i := 2
 			x := 0
@@ -54,15 +102,6 @@ func read(c distributorChannels, conn *net.Conn) {
 			//	break
 			//TURN COMPLETE
 		} else if msg[0] == 't' && msg[1] == 'c' {
-			i := 2
-			turn := 0
-			for i < len(msg) && msg[i] != '\n' {
-				turn = turn*10 + (int(msg[i]) - '0')
-				i++
-			}
-			c.events <- TurnComplete{
-				turn,
-			}
 
 			//FINAL TURN COMPLETE
 		} else if msg[0] == 'f' && msg[1] == 't' && msg[2] == 'c' {

@@ -16,8 +16,8 @@ func Run(p Params, events chan<- Event, keyPresses <-chan rune) {
 	ioFilename := make(chan string)
 	ioInput := make(chan uint8)
 	ioOutput := make(chan uint8)
-	outputWorld := make(chan [][]byte)
-	
+	//outputWorld := make(chan [][]byte)
+
 	distributorChannels := distributorChannels{
 		events,
 		ioCommand,
@@ -25,7 +25,7 @@ func Run(p Params, events chan<- Event, keyPresses <-chan rune) {
 		ioFilename,
 		ioInput,
 		ioOutput,
-		outputWorld,
+		keyPresses,
 	}
 	go controller(p, distributorChannels)
 
