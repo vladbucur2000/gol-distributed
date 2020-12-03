@@ -173,10 +173,46 @@ func worker(originalWorld [][]byte, turn int, ImageHeight, ImageWidth int, start
 
 }
 
-func startWorker(workerHeight int, turn int, ImageHeight, ImageWidth int, world [][]byte, start int, end int, thread int, outChannel chan byte, inputChannel chan byte, conn *net.Conn) {
+func getWorkerWorld(r int, world [][]byte, workerHeight int, ImageHeight int, ImageWidth int,  thread int) [][]byte {
+	workerWorld := make([][]byte, workerHeight+2)
+	for i := range workerWorld {
+		workerWorld[i] = make([]byte, p.ImageWidth)
+	}
+	//fmt.Println("thread:", thread, (threadworkerHeight+p.ImageHeight-1)%p.ImageHeight)
+	//fmt.Println("dimensiuni pentru thread %T height: %T la %T", thread, (threadworkerHeight+p.ImageHeight-r-1)%p.ImageHeight, ((thread+1)workerHeight-r)%p.ImageHeight)
+	for j := 0; j < p.ImageWidth; j++ {
+		workerWorld[0][j] = world[mod(threadworkerHeight-r-1, p.ImageHeight)][j]
+	}
+	for i := 1; i <= workerHeight; i++ {
+		for j := 0; j < p.ImageWidth; j++ {
+			workerWorld[i][j] = world[mod(threadworkerHeight+i-1-r, p.ImageHeight)][j]
+			fmt.Print(mod(threadworkerHeight+i-1-r, p.ImageHeight))
+			fmt.Print("/")
+		}
+	}
+	for j := 0; j < p.ImageWidth; j++ {
+		workerWorld[workerHeight+1][j] =
+			world[mod((thread+1)*workerHeight-r, p.ImageHeight)][j]
+	}
 
+	return workerWorld
+}
+
+func startWorker(workerHeight int, turn int, ImageHeight, ImageWidth int, world [][]byte, start int, end int, thread int, outChannel chan byte, inputChannel chan byte, conn *net.Conn) {
+/*	workerWorld := getWorkerWorld(0, world, imageHeight / thread, ImageHeight, ImageWidth, node, 
 	go worker(world, turn, ImageHeight, ImageWidth, start, end, workerHeight, outChannel, inputChannel, conn)
 
+	dividedWorld := make([][]byte, end - start + 1)
+
+	for i := range (dividedWorld)
+		dividedWorld = make([]byte, ImageWidth)
+
+	for i := start; i < end; i++ {
+		for j := 0; j < ImageWidth; j++ {
+			dividedWorld[i][j] = world[i][j]
+		}
+	}*/
+	
 	for i := start; i < end; i++ {
 		for j := 0; j < ImageWidth; j++ {
 
@@ -287,8 +323,11 @@ func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world 
 				fmt.Fprintln(*conn, worldString)
 			} else if key == "kquitTheGame\t" {
 				worldString := convertToString(workingWorld, ImageHeight, ImageWidth, Turns, Threads)
+				
 				fmt.Fprintln(*conn, worldString)
 				fmt.Fprintln(*conn, createStateChange(turn, "q"))
+				//(*conn).Close()
+				return
 			}
 		case <-ticker.C:
 			howManyAreAlive := 0
@@ -343,7 +382,7 @@ func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world 
 		}
 		turnCompleteString := createTurnComplete(turn)
 		fmt.Fprintln(*conn, turnCompleteString)
-		//myVisualiseMatrix(workingWorld, ImageWidth, ImageHeight)
+		myVisualiseMatrix(workingWorld, ImageWidth, ImageHeight)
 
 	}
 	worldString := convertToString(workingWorld, ImageHeight, ImageWidth, Turns, Threads)
@@ -357,8 +396,12 @@ func handleConnection(conn *net.Conn, inputChannel chan string, KeyChannel chan 
 
 	reader := bufio.NewReader(*conn)
 	for {
+		msg, er := reader.ReadString('\t')
 
-		msg, _ := reader.ReadString('\t')
+		if (er != nil) { //controller has been disconnected
+			continue
+		}
+
 		if msg[0] == 'k' {
 			fmt.Println("AM intrat2")
 			//fmt.Println(msg)
@@ -367,24 +410,25 @@ func handleConnection(conn *net.Conn, inputChannel chan string, KeyChannel chan 
 			inputChannel <- msg
 		}
 	}
-	// fmt.Fprintln(*conn, "am primit cumetre")
-
 }
 
 func main() {
+	KeyChannel := make(chan string)
+	inputChannel := make(chan string)
+
 	ln, err := net.Listen("tcp", ":8080")
 
 	if err != nil {
-		fmt.Println("eroare cumetre")
+		fmt.Println("Error!")
 	}
-	KeyChannel := make(chan string)
-	inputChannel := make(chan string)
+
 	for {
 		conn, er := ln.Accept()
 
 		if er != nil {
-			fmt.Println("eroare cumetre2")
+			fmt.Println("Error!")
 		}
+
 		go handleConnection(&conn, inputChannel, KeyChannel)
 		msg := <-inputChannel
 		stringToMatrix(msg, &conn, KeyChannel)
