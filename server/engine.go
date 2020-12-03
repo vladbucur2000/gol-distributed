@@ -198,7 +198,7 @@ func numberToString(nr int) string {
 	return strconv.Itoa(nr)
 }
 
-func sendTheWorld(world [][]byte, ImageHeight, ImageWidth, Turns, Threads int) string {
+func convertToString(world [][]byte, ImageHeight, ImageWidth, Turns, Threads int) string {
 	var data []string
 
 	hs := numberToString(ImageHeight)
@@ -206,19 +206,20 @@ func sendTheWorld(world [][]byte, ImageHeight, ImageWidth, Turns, Threads int) s
 	turn := numberToString(Turns)
 	thread := numberToString(Threads)
 
+	data = append(data, "map")
 	data = append(data, hs)
-	data = append(data, "\n")
+	data = append(data, " ")
 	data = append(data, ws)
-	data = append(data, "\n")
+	data = append(data, " ")
 	data = append(data, turn)
-	data = append(data, "\n")
+	data = append(data, " ")
 	data = append(data, thread)
-	data = append(data, "\n")
+	data = append(data, " ")
 
 	for i := 0; i < ImageHeight; i++ {
 		for j := 0; j < ImageWidth; j++ {
 
-			if world[i][j] == 255 {
+			if world[i][j] != 0 {
 				data = append(data, "1")
 			}
 			if world[i][j] == 0 {
@@ -226,14 +227,22 @@ func sendTheWorld(world [][]byte, ImageHeight, ImageWidth, Turns, Threads int) s
 			}
 
 		}
-		data = append(data, "\n")
+		data = append(data, " ")
 	}
 
-	data = append(data, "gata!!\t")
+	data = append(data, "\n")
 
 	return strings.Join(data, "")
 }
 
+func createStateChange(turn int, state string) string {
+	var data []string
+	data = append(data, "key")
+	data = append(data, state)
+	data = append(data, numberToString(turn))
+	data = append(data, "\n")
+	return strings.Join(data, "")
+}
 func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world [][]byte, conn *net.Conn, KeyChannel chan string) {
 
 	workingWorld := make([][]byte, ImageHeight)
@@ -257,18 +266,30 @@ func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world 
 
 		select {
 		//AICI INTRA KEY URILE
-		// case key := <-KeyChannel:
-		// 	if key == "kpauseTheGame" {
-		// 		for {
-		// 			// worldString := sendTheWorld(workingWorld, ImageHeight, ImageWidth, Turns, Threads)
-		// 			// fmt.Fprintln(*conn, worldString)
-		// 			reader2 := bufio.NewReader(*conn)
-		// 			msg2, _ := reader2.ReadString('\t')
-		// 			if msg2 == "kstartTheGame" {
-		// 				break
-		// 			}
-		// 		}
-		// 	}
+		case key := <-KeyChannel:
+			if key == "kpauseTheGame\t" {
+
+				worldString := convertToString(workingWorld, ImageHeight, ImageWidth, Turns, Threads)
+				fmt.Fprintln(*conn, worldString)
+
+				fmt.Fprintln(*conn, createStateChange(turn, "p"))
+				fmt.Println("AM intrat2 da dupa alea")
+				for {
+
+					key2 := <-KeyChannel
+					if key2 == "kpauseTheGame\t" {
+						fmt.Fprintln(*conn, createStateChange(turn, "e"))
+						break
+					}
+				}
+			} else if key == "ksaveTheGame\t" {
+				worldString := convertToString(workingWorld, ImageHeight, ImageWidth, Turns, Threads)
+				fmt.Fprintln(*conn, worldString)
+			} else if key == "kquitTheGame\t" {
+				worldString := convertToString(workingWorld, ImageHeight, ImageWidth, Turns, Threads)
+				fmt.Fprintln(*conn, worldString)
+				fmt.Fprintln(*conn, createStateChange(turn, "q"))
+			}
 		case <-ticker.C:
 			howManyAreAlive := 0
 			for i := 0; i < ImageHeight; i++ {
@@ -321,33 +342,32 @@ func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world 
 			}
 		}
 		turnCompleteString := createTurnComplete(turn)
-
 		fmt.Fprintln(*conn, turnCompleteString)
 		//myVisualiseMatrix(workingWorld, ImageWidth, ImageHeight)
 
 	}
-
+	worldString := convertToString(workingWorld, ImageHeight, ImageWidth, Turns, Threads)
+	fmt.Fprintln(*conn, worldString)
 	finalTurnCompleteString := createFinalTurnComplete(turn, workingWorld, ImageHeight, ImageWidth)
 	fmt.Fprintln(*conn, finalTurnCompleteString)
 
 }
-func handleKeyPresses(conn *net.Conn, KeyChannel chan string) {
+
+func handleConnection(conn *net.Conn, inputChannel chan string, KeyChannel chan string) {
+
 	reader := bufio.NewReader(*conn)
-	msg, _ := reader.ReadString('\t')
-	if msg[0] == 'k' {
-		KeyChannel <- msg
+	for {
+
+		msg, _ := reader.ReadString('\t')
+		if msg[0] == 'k' {
+			fmt.Println("AM intrat2")
+			//fmt.Println(msg)
+			KeyChannel <- msg
+		} else {
+			inputChannel <- msg
+		}
 	}
-
-}
-
-func handleConnection(conn *net.Conn, KeyChannel chan string) {
-
-	reader := bufio.NewReader(*conn)
-	msg, _ := reader.ReadString('\t')
-
-	stringToMatrix(msg, conn, KeyChannel)
-
-	fmt.Fprintln(*conn, "am primit cumetre")
+	// fmt.Fprintln(*conn, "am primit cumetre")
 
 }
 
@@ -357,15 +377,17 @@ func main() {
 	if err != nil {
 		fmt.Println("eroare cumetre")
 	}
-
+	KeyChannel := make(chan string)
+	inputChannel := make(chan string)
 	for {
 		conn, er := ln.Accept()
 
 		if er != nil {
 			fmt.Println("eroare cumetre2")
 		}
-		KeyChannel := make(chan string)
-		go handleConnection(&conn, KeyChannel)
+		go handleConnection(&conn, inputChannel, KeyChannel)
+		msg := <-inputChannel
+		stringToMatrix(msg, &conn, KeyChannel)
 		//go handleKeyPresses(&conn, KeyChannel)
 	}
 }

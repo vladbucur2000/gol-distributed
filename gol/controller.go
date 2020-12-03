@@ -10,6 +10,14 @@ import (
 	"uk.ac.bris.cs/gameoflife/util"
 )
 
+type myParameters struct {
+	world       [][]byte
+	ImageHeight int
+	ImageWidth  int
+	Turns       int
+	Threads     int
+}
+
 type distributorChannels struct {
 	events     chan<- Event
 	ioCommand  chan<- ioCommand
@@ -20,41 +28,73 @@ type distributorChannels struct {
 	keyPressed <-chan rune
 }
 
-func read(c distributorChannels, conn *net.Conn) {
+func sendKeys(c distributorChannels, conn *net.Conn, keyTurn chan string) {
+	for {
+		select {
+		case key := <-c.keyPressed:
+			if key == 'p' {
+				text := "kpauseTheGame\t"
+				fmt.Fprintf(*conn, text)
+
+			} else if key == 's' {
+				fmt.Println("Saving key sent to server...")
+				text := "ksaveTheGame\t"
+				fmt.Fprintf(*conn, text)
+
+			} else if key == 'q' {
+				fmt.Println("Quiting key sent to server...")
+				text := "kquitTheGame\t"
+				fmt.Fprintf(*conn, text)
+			}
+
+		default:
+		}
+	}
+}
+func saveTheWorld(c distributorChannels, p myParameters) {
+	c.ioCommand <- ioOutput
+	c.ioFilename <- strings.Join([]string{strconv.Itoa(p.ImageWidth), strconv.Itoa(p.ImageHeight), strconv.Itoa(p.Turns)}, "x")
+	for i := 0; i < p.ImageHeight; i++ {
+		for j := 0; j < p.ImageWidth; j++ {
+			c.ioOutput <- p.world[i][j]
+		}
+	}
+}
+func read(c distributorChannels, conn *net.Conn, keyTurn chan string) {
 	reader := bufio.NewReader(*conn)
 	for {
 		msg, _ := reader.ReadString('\n')
+		// keyp23 / keye23
+		if msg[0] == 'm' && msg[1] == 'a' && msg[2] == 'p' {
 
-		// select {
-		//  case key := <-c.keyPressed:
-		// 	if key == 'p' {
-		// 		text := "kpauseTheGame"
-		// 		fmt.Fprintf(*conn, text)
-		// 		msg, _ := reader.ReadString('\n')
-		// 		i := 0
-		// 		turn := 0
-		// 		for i < len(msg) && msg[i] != ' ' {
-		// 			turn = turn*10 + (int(msg[i]) - '0')
-		// 			i++
-		// 		}
-		// 		c.events <- StateChange{
-		// 			turn,
-		// 			Paused,
-		// 		}
-		// 		for {
-		// 			key2nd := <-c.keyPressed
-		// 			if key2nd == 'p' {
-		// 				text := "kstartTheGame"
-		// 				fmt.Fprintf(*conn, text)
-		// 			}
-		// 			break
+			p := stringToMatrix(msg)
+			saveTheWorld(c, p)
 
-		// 		}
-		// 	}
-		// default:
-		// }
-		//CELLFLIPPED RECEIVED
-		if msg[0] == 'a' && msg[1] == 'c' && msg[2] == 'c' {
+		} else if msg[0] == 'k' && msg[1] == 'e' && msg[2] == 'y' {
+
+			var state State = 0
+			if msg[3] == 'p' {
+				state = Paused
+			} else if msg[3] == 'e' {
+				state = 1
+			} else if msg[3] == 'q' {
+				state = 2
+			}
+			i := 4
+			turn := 0
+			for i < len(msg) && msg[i] != ' ' {
+				turn = turn*10 + (int(msg[i]) - '0')
+				i++
+			}
+			c.events <- StateChange{
+				turn,
+				state,
+			}
+			if state == 2 {
+				//return
+			}
+			//CELLFLIPPED RECEIVED
+		} else if msg[0] == 'a' && msg[1] == 'c' && msg[2] == 'c' {
 			i := 3
 			turn := 0
 			howManyAreComplete := 0
@@ -67,13 +107,12 @@ func read(c distributorChannels, conn *net.Conn) {
 				howManyAreComplete = howManyAreComplete*10 + (int(msg[i]) - '0')
 				i++
 			}
-			fmt.Println(howManyAreComplete)
+			//fmt.Println(howManyAreComplete)
 			c.events <- AliveCellsCount{
 				turn,
 				howManyAreComplete,
 			}
-		}
-		if msg[0] == 'c' && msg[1] == 'f' {
+		} else if msg[0] == 'c' && msg[1] == 'f' {
 			i := 2
 			x := 0
 			y := 0
@@ -102,11 +141,17 @@ func read(c distributorChannels, conn *net.Conn) {
 			//	break
 			//TURN COMPLETE
 		} else if msg[0] == 't' && msg[1] == 'c' {
-
+			i := 2
+			turn := 0
+			for i < len(msg) && msg[i] != '\n' {
+				turn = turn*10 + (int(msg[i]) - '0')
+				i++
+			}
+			c.events <- TurnComplete{
+				turn,
+			}
 			//FINAL TURN COMPLETE
 		} else if msg[0] == 'f' && msg[1] == 't' && msg[2] == 'c' {
-
-			//AICI TREBUIE MODIFICAT PENTRU "BUG"
 			i := 3
 			turn := 0
 			var alive []util.Cell
@@ -146,7 +191,6 @@ func read(c distributorChannels, conn *net.Conn) {
 				alive,
 			}
 			return
-
 		}
 	}
 
@@ -187,9 +231,66 @@ func convertToString(world [][]byte, p Params) string {
 		data = append(data, "\n")
 	}
 
-	data = append(data, "gata!!\t")
+	data = append(data, "\t")
 
 	return strings.Join(data, "")
+}
+func stringToMatrix(msg string) myParameters {
+	i := 3
+	height := 0
+	width := 0
+	turn := 0
+	thread := 0
+
+	for i < len(msg) && msg[i] != ' ' {
+		height = height*10 + (int(msg[i]) - '0')
+		i++
+	}
+	i++
+	for i < len(msg) && msg[i] != ' ' {
+		width = width*10 + (int(msg[i]) - '0')
+		i++
+	}
+	i++
+	for i < len(msg) && msg[i] != ' ' {
+		turn = turn*10 + (int(msg[i]) - '0')
+		i++
+	}
+	i++
+	for i < len(msg) && msg[i] != ' ' {
+		thread = thread*10 + (int(msg[i]) - '0')
+		i++
+	}
+
+	i++
+	nr := i
+
+	world := make([][]byte, height)
+	for i := range world {
+		world[i] = make([]byte, width)
+	}
+
+	for i := 0; i < height; i++ {
+		for j := 0; j < width; j++ {
+			if msg[nr] == '0' {
+				world[i][j] = 0
+			} else {
+				world[i][j] = 255
+			}
+
+			nr++
+
+		}
+		nr++
+	}
+
+	return myParameters{
+		world,
+		height,
+		width,
+		turn,
+		thread,
+	}
 }
 
 // distributor divides the work between workers and interacts with other goroutines.
@@ -207,7 +308,6 @@ func controller(p Params, c distributorChannels) {
 
 	c.ioFilename <- strings.Join([]string{strconv.Itoa(p.ImageWidth), strconv.Itoa(p.ImageHeight)}, "x")
 	// TODO: For all initially alive cells send a CellFlipped Event.
-	// SA EXTRAG INPUTUL IN MATRICE SI SA L TRANSFORM IN STRING CA SA L TRIMIT LA ENGINE
 	for i := 0; i < p.ImageHeight; i++ {
 		for j := 0; j < p.ImageWidth; j++ {
 			val := <-c.ioInput
@@ -215,12 +315,14 @@ func controller(p Params, c distributorChannels) {
 		}
 	}
 
-	//text := util.MatricesToString(world, nil, p.ImageWidth, p.ImageHeight)
 	text := convertToString(world, p)
 
 	fmt.Fprintf(conn, text)
-	//for {
-	read(c, &conn)
+	keyTurn := make(chan string)
+
+	go sendKeys(c, &conn, keyTurn)
+	read(c, &conn, keyTurn)
+
 	// Make sure that the Io has finished any output before exiting.
 	c.ioCommand <- ioCheckIdle
 	<-c.ioIdle

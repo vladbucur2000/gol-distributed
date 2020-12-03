@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"runtime"
+
 	"uk.ac.bris.cs/gameoflife/gol"
 	"uk.ac.bris.cs/gameoflife/sdl"
 )
@@ -22,13 +23,13 @@ func main() {
 	flag.IntVar(
 		&params.ImageWidth,
 		"w",
-		512,
+		64,
 		"Specify the width of the image. Defaults to 512.")
 
 	flag.IntVar(
 		&params.ImageHeight,
 		"h",
-		512,
+		64,
 		"Specify the height of the image. Defaults to 512.")
 
 	flag.IntVar(
