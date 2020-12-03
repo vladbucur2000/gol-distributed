@@ -70,7 +70,7 @@ func stringToMatrix(msg string, conn *net.Conn, KeyChannel chan string) {
 		nr++
 	}
 
-	playTheGame(height, width, turn, thread, world, conn, KeyChannel)
+	playTheGame(height, width, turn, thread, world, conn, KeyChannel, nodeChan)
 
 }
 
@@ -199,7 +199,7 @@ func getWorkerWorld(r int, world [][]byte, workerHeight int, ImageHeight int, Im
 }
 
 func startNode(workerHeight int, turn int, ImageHeight, ImageWidth int, world [][]byte, thread int, outChannel chan byte, conn *net.Conn) {
-	nodeWorldString := convertToString(world, ImageHeight, ImageWidth, 0, 0)
+	//nodeWorldString := convertToString(world, ImageHeight, ImageWidth, 0, 0)
 	//go worker(world, turn, ImageHeight, ImageWidth, , height, outChannel, inputChannel, conn*net.Conn)
 }
 
@@ -261,7 +261,7 @@ func createStateChange(turn int, state string) string {
 	data = append(data, "\n")
 	return strings.Join(data, "")
 }
-func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world [][]byte, conn *net.Conn, KeyChannel chan string) {
+func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world [][]byte, conn *net.Conn, KeyChannel chan string, nodeChan []chan string) {
 
 	workingWorld := make([][]byte, ImageHeight)
 	for i := range world {
@@ -397,6 +397,45 @@ func handleConnection(conn *net.Conn, inputChannel chan string, KeyChannel chan 
 	}
 }
 
+
+type Message struct {
+	sender  int
+	message string
+}
+
+
+func acceptConns(ln net.Listener, conns chan net.Conn) {
+	for {
+		conn, er := ln.Accept()
+		if (er != nil) {
+			fmt.Println("Error accepting connection")
+		}
+		conns <- conn
+	}
+}
+
+func handleNode(client *net.Conn, clientid int, nodeChan []chan string) {
+	reader := bufio.NewReader(*client)
+	for {
+		msg, _ := reader.ReadString('\n')
+		
+		
+		fmt.Println("ce pula mea zici sunt nodu nr", clientid, " mesaju meu este:"  , msg, "\n")
+	//	fmt.Fprintf(*client, "te ascult nebune\n")
+
+	}
+}
+
+func sendWorld(client *net.Conn, nodeChan chan string) {
+	for {
+		select {
+		case msg := <- nodeChan : fmt.Fprintf(*client, msg)	
+		default: 
+		}
+	}
+}
+
+
 func main() {
 	KeyChannel := make(chan string)
 	inputChannel := make(chan string)
@@ -406,7 +445,45 @@ func main() {
 	if err != nil {
 		fmt.Println("Error!")
 	}
+	//Create a channel for connections
+	conns := make(chan net.Conn)
+	//Create a mapping IDs to connections
+	clients := make(map[int]net.Conn)
 
+	nodeChan := make([]chan string, 4)
+
+	go acceptConns(ln, conns)
+	n := 0
+	for {
+		select {
+		case conn := <-conns:
+
+			client := conn
+			clients[n] = conn
+			
+			if (n == 4) {
+				go handleConnection(&conn, inputChannel, KeyChannel)
+			}
+			
+			if (n != 4) {
+				go handleNode(&client, n, nodeChan)
+				go sendWorld(&client, nodeChan[n])
+			}
+
+			n++
+
+		/*case msg := <-msgs:
+			//TODO Deal with a new message
+			// Send the message to all clients that aren't the sender
+
+			for i, client := range clients {
+				if msg.sender != i {
+					fmt.Fprintf(client, msg.message)
+				}
+			}*/
+		}
+	}
+	/*
 	for {
 		conn, er := ln.Accept()
 
@@ -418,5 +495,5 @@ func main() {
 		msg := <-inputChannel
 		stringToMatrix(msg, &conn, KeyChannel)
 		//go handleKeyPresses(&conn, KeyChannel)
-	}
+	}*/
 }
