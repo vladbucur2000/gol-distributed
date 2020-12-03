@@ -173,54 +173,36 @@ func worker(originalWorld [][]byte, turn int, ImageHeight, ImageWidth int, start
 
 }
 
-func getWorkerWorld(r int, world [][]byte, workerHeight int, ImageHeight int, ImageWidth int,  thread int) [][]byte {
+func getWorkerWorld(r int, world [][]byte, workerHeight int, ImageHeight int, ImageWidth int, thread int) [][]byte {
 	workerWorld := make([][]byte, workerHeight+2)
 	for i := range workerWorld {
-		workerWorld[i] = make([]byte, p.ImageWidth)
+		workerWorld[i] = make([]byte, ImageWidth)
 	}
 	//fmt.Println("thread:", thread, (threadworkerHeight+p.ImageHeight-1)%p.ImageHeight)
 	//fmt.Println("dimensiuni pentru thread %T height: %T la %T", thread, (threadworkerHeight+p.ImageHeight-r-1)%p.ImageHeight, ((thread+1)workerHeight-r)%p.ImageHeight)
-	for j := 0; j < p.ImageWidth; j++ {
-		workerWorld[0][j] = world[mod(threadworkerHeight-r-1, p.ImageHeight)][j]
+	for j := 0; j < ImageWidth; j++ {
+		workerWorld[0][j] = world[mod(thread*workerHeight-r-1, ImageHeight)][j]
 	}
 	for i := 1; i <= workerHeight; i++ {
-		for j := 0; j < p.ImageWidth; j++ {
-			workerWorld[i][j] = world[mod(threadworkerHeight+i-1-r, p.ImageHeight)][j]
-			fmt.Print(mod(threadworkerHeight+i-1-r, p.ImageHeight))
+		for j := 0; j < ImageWidth; j++ {
+			workerWorld[i][j] = world[mod(thread*workerHeight+i-1-r, ImageHeight)][j]
+			fmt.Print(mod(thread*workerHeight+i-1-r, ImageHeight))
 			fmt.Print("/")
 		}
 	}
-	for j := 0; j < p.ImageWidth; j++ {
+	for j := 0; j < ImageWidth; j++ {
 		workerWorld[workerHeight+1][j] =
-			world[mod((thread+1)*workerHeight-r, p.ImageHeight)][j]
+			world[mod((thread+1)*workerHeight-r, ImageHeight)][j]
 	}
 
 	return workerWorld
 }
 
-func startWorker(workerHeight int, turn int, ImageHeight, ImageWidth int, world [][]byte, start int, end int, thread int, outChannel chan byte, inputChannel chan byte, conn *net.Conn) {
-/*	workerWorld := getWorkerWorld(0, world, imageHeight / thread, ImageHeight, ImageWidth, node, 
-	go worker(world, turn, ImageHeight, ImageWidth, start, end, workerHeight, outChannel, inputChannel, conn)
-
-	dividedWorld := make([][]byte, end - start + 1)
-
-	for i := range (dividedWorld)
-		dividedWorld = make([]byte, ImageWidth)
-
-	for i := start; i < end; i++ {
-		for j := 0; j < ImageWidth; j++ {
-			dividedWorld[i][j] = world[i][j]
-		}
-	}*/
-	
-	for i := start; i < end; i++ {
-		for j := 0; j < ImageWidth; j++ {
-
-			inputChannel <- world[i][j]
-		}
-
-	}
+func startNode(workerHeight int, turn int, ImageHeight, ImageWidth int, world [][]byte, thread int, outChannel chan byte, conn *net.Conn) {
+	nodeWorldString := convertToString(world, ImageHeight, ImageWidth, 0, 0)
+	//go worker(world, turn, ImageHeight, ImageWidth, , height, outChannel, inputChannel, conn*net.Conn)
 }
+
 func myVisualiseMatrix(world [][]byte, ImageWidth, ImageHeight int) {
 	for i := 0; i < ImageHeight; i++ {
 		for j := 0; j < ImageWidth; j++ {
@@ -323,7 +305,7 @@ func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world 
 				fmt.Fprintln(*conn, worldString)
 			} else if key == "kquitTheGame\t" {
 				worldString := convertToString(workingWorld, ImageHeight, ImageWidth, Turns, Threads)
-				
+
 				fmt.Fprintln(*conn, worldString)
 				fmt.Fprintln(*conn, createStateChange(turn, "q"))
 				//(*conn).Close()
@@ -343,35 +325,38 @@ func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world 
 		default:
 		}
 
-		workerHeight := ImageHeight / Threads
-		outChannel := make([]chan byte, Threads)
+		nodes := 4
+		workerHeight := ImageHeight / nodes
+		outChannel := make([]chan byte, nodes)
 
 		newWorld := make([][]byte, ImageHeight)
 		for i := range workingWorld {
 			newWorld[i] = make([]byte, ImageWidth)
 		}
-		for thread := 0; thread < Threads-1; thread++ {
-			inputChannel := make(chan byte)
+
+		for thread := 0; thread < nodes; thread++ {
+
 			outChannel[thread] = make(chan byte)
-			start := workerHeight * thread
-			end := start + workerHeight
-			startWorker(workerHeight, turn, ImageHeight, ImageWidth, workingWorld, start, end, thread, outChannel[thread], inputChannel, conn)
-			for i := start; i < end; i++ {
-				for j := 0; j < ImageWidth; j++ {
-					newWorld[i][j] = <-outChannel[thread]
-				}
-			}
+
+			nodeWorldBytes := getWorkerWorld(0, workingWorld, workerHeight, ImageHeight, ImageWidth, thread)
+			startNode(workerHeight, turn, ImageHeight, ImageWidth, nodeWorldBytes, thread, outChannel[thread], conn)
 		}
 
-		inputChannel := make(chan byte)
-		outChannel[Threads-1] = make(chan byte)
-		start := workerHeight * (Threads - 1)
-		end := ImageHeight
+		for thread := 0; thread < nodes; thread++ {
 
-		startWorker(workerHeight, turn, ImageHeight, ImageWidth, workingWorld, start, end, Threads-1, outChannel[Threads-1], inputChannel, conn)
-		for i := start; i < end; i++ {
-			for j := 0; j < ImageWidth; j++ {
-				newWorld[i][j] = <-outChannel[Threads-1]
+			outWorld := make([][]byte, workerHeight)
+			for i := range outWorld {
+				outWorld[i] = make([]byte, ImageWidth)
+			}
+			for i := 0; i < workerHeight; i++ {
+				for j := 0; j < ImageWidth; j++ {
+					outWorld[i][j] = <-outChannel[thread]
+				}
+			}
+			for i := 0; i < workerHeight; i++ {
+				for j := 0; j < ImageWidth; j++ {
+					world[(thread*workerHeight+i+ImageHeight)%ImageHeight][j] = outWorld[i][j]
+				}
 			}
 		}
 
@@ -398,7 +383,7 @@ func handleConnection(conn *net.Conn, inputChannel chan string, KeyChannel chan 
 	for {
 		msg, er := reader.ReadString('\t')
 
-		if (er != nil) { //controller has been disconnected
+		if er != nil { //controller has been disconnected
 			continue
 		}
 
