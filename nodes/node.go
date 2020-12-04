@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -114,8 +115,6 @@ func computeWorld(conn *net.Conn, p myParameters) [][]byte {
 		newWorld[i] = make([]byte, p.ImageWidth)
 	}
 	wholeImage := 4 * (p.ImageHeight - 2)
-	// fmt.Println(mod(p.clientid*(p.ImageHeight-2), wholeImage))
-	// fmt.Println(mod(p.clientid*(p.ImageHeight-2)+p.ImageHeight-2, p.ImageHeight))
 	for i := 1; i < p.ImageHeight-1; i++ {
 		for j := 0; j < p.ImageWidth; j++ {
 			neighbours := calculateNeighbours(p.ImageHeight, p.ImageWidth, j, i, p.world)
@@ -196,8 +195,10 @@ func read(conn *net.Conn) {
 			p := stringToMatrix(line)
 			newWorld := computeWorld(conn, p)
 			newWorldString := convertToString(newWorld, p)
-			//fmt.Println(newWorldString)
 			fmt.Fprintf(*conn, newWorldString)
+		}
+		if line == "kshutDown\n" {
+			os.Exit(3)
 		}
 
 	}
@@ -205,7 +206,6 @@ func read(conn *net.Conn) {
 
 func write(conn *net.Conn) {
 	for {
-		//fmt.Fprintf(*conn, "sati trag la muie\n")
 	}
 }
 

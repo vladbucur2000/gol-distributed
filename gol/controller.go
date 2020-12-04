@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"uk.ac.bris.cs/gameoflife/util"
 )
@@ -46,6 +48,12 @@ func sendKeys(c distributorChannels, conn *net.Conn, keyTurn chan string) {
 				fmt.Println("Quiting key sent to server...")
 				text := "kquitTheGame\n"
 				fmt.Fprintf(*conn, text)
+			} else if key == 'k' {
+				fmt.Println("Shuting down all components...")
+				text := "kshutDown\n"
+				fmt.Fprintf(*conn, text)
+				time.Sleep(3 * time.Second)
+				os.Exit(3)
 			}
 
 		default:
@@ -71,9 +79,6 @@ func read(c distributorChannels, conn *net.Conn, keyTurn chan string) {
 		if len(msg) == 1 {
 			continue
 		}
-
-		fmt.Println(msg)
-
 		if msg[1] == 'm' && msg[2] == 'a' && msg[3] == 'p' {
 
 			p := stringToMatrix(msg)
@@ -338,7 +343,7 @@ func controller(p Params, c distributorChannels) {
 	c.ioCommand <- ioCheckIdle
 	<-c.ioIdle
 
-	//	c.events <- StateChange{turn, Quitting}
+	//c.events <- StateChange{turn, Quitting}
 	// Close the channel to stop the SDL goroutine gracefully. Removing may cause deadlock.
 	close(c.events)
 }

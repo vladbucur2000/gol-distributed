@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -62,10 +63,8 @@ func stringToMatrix(msg string) myParameters {
 		thread = thread*10 + (int(msg[i]) - '0')
 		i++
 	}
-
 	i++
 	nr := i
-	//fmt.Println("AICI BA HASHu: ", height)
 	world := make([][]byte, height)
 	for i := range world {
 		world[i] = make([]byte, width)
@@ -146,8 +145,6 @@ func getWorkerWorld(r int, world [][]byte, workerHeight int, ImageHeight int, Im
 	for i := range workerWorld {
 		workerWorld[i] = make([]byte, ImageWidth)
 	}
-	//fmt.Println("thread:", thread, (threadworkerHeight+p.ImageHeight-1)%p.ImageHeight)
-	//fmt.Println("dimensiuni pentru thread %T height: %T la %T", thread, (threadworkerHeight+p.ImageHeight-r-1)%p.ImageHeight, ((thread+1)workerHeight-r)%p.ImageHeight)
 	for j := 0; j < ImageWidth; j++ {
 		workerWorld[0][j] = world[mod(thread*workerHeight-r-1, ImageHeight)][j]
 	}
@@ -167,10 +164,7 @@ func getWorkerWorld(r int, world [][]byte, workerHeight int, ImageHeight int, Im
 
 func startNode(workerHeight int, turn int, ImageHeight, ImageWidth int, world [][]byte, thread int, outChannel chan byte, conn *net.Conn, clients map[int]net.Conn) {
 	nodeWorldString := convertToString(world, workerHeight, ImageWidth, thread, turn, thread)
-	// fmt.Println("Client:", thread)
-	// fmt.Println(nodeWorldString)
 	fmt.Fprintf(clients[thread], nodeWorldString)
-	//go worker(world, turn, ImageHeight, ImageWidth, , height, outChannel, inputChannel, conn*net.Conn)
 }
 
 func myVisualiseMatrix(world [][]byte, ImageWidth, ImageHeight int) {
@@ -275,11 +269,18 @@ func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world 
 				fmt.Fprintln(*conn, worldString)
 			} else if key == "kquitTheGame\n" {
 				worldString := convertToString(workingWorld, ImageHeight, ImageWidth, Turns, Threads, 0)
-
 				fmt.Fprintln(*conn, worldString)
 				fmt.Fprintln(*conn, createStateChange(turn, "q"))
-				//(*conn).Close()
 				return
+			} else if key == "kshutDown\n" {
+				worldString := convertToString(workingWorld, ImageHeight, ImageWidth, Turns, Threads, 0)
+				fmt.Fprintln(*conn, worldString)
+				fmt.Fprintln(*conn, createStateChange(turn, "q"))
+				msg := "kshutDown\n"
+				for i, _ := range clients {
+					fmt.Fprintf(clients[i], msg)
+				}
+				os.Exit(3)
 			}
 		case <-ticker.C:
 			howManyAreAlive := 0
@@ -313,8 +314,6 @@ func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world 
 			startNode(workerHeight+2, turn, ImageHeight, ImageWidth, nodeWorldBytes, thread, outChannel[thread], conn, clients)
 		}
 
-		// go receiveWorldsAndProcess()
-
 		unifyWorld := make([][]byte, ImageHeight)
 		for i := range unifyWorld {
 			unifyWorld[i] = make([]byte, ImageWidth)
@@ -325,8 +324,6 @@ func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world 
 				unifyWorldHelper[i] = make([]byte, ImageWidth)
 			}
 			p := <-nodeChan[thread]
-			//fmt.Println("inecracam asa : ", p.clientid)
-			//Te pup vladuc <3
 			for i := 0; i < workerHeight; i++ {
 				for j := 0; j < ImageWidth; j++ {
 					unifyWorldHelper[i][j] = p.world[i][j]
@@ -342,16 +339,12 @@ func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world 
 
 		for i := 0; i < ImageHeight; i++ {
 			for j := 0; j < ImageWidth; j++ {
-				// if unifyWorld[i][j] != workingWorld[i][j] {
-				// 	msg := createCellFlipped(i, j, turn)
-				// 	fmt.Fprintf(*conn, msg)
-				// }
 				workingWorld[i][j] = unifyWorld[i][j]
 			}
 		}
 		turnCompleteString := createTurnComplete(turn)
 		fmt.Fprintln(*conn, turnCompleteString)
-		//myVisualiseMatrix(workingWorld, ImageWidth, ImageHeight)
+		myVisualiseMatrix(workingWorld, ImageWidth, ImageHeight)
 
 	}
 	worldString := convertToString(workingWorld, ImageHeight, ImageWidth, Turns, Threads, 0)
@@ -367,15 +360,14 @@ func handleConnection(conn *net.Conn, inputChannel chan string, KeyChannel chan 
 	for {
 		msg, er := reader.ReadString('\n')
 
-		if er != nil { //controller has been disconnected
+		if er != nil {
 			continue
 		}
 
 		if msg[0] == 'k' {
-			fmt.Println("AM intrat2")
+			fmt.Println("Pressed Key")
 			KeyChannel <- msg
 		} else {
-
 			inputChannel <- msg
 		}
 	}
@@ -459,31 +451,8 @@ func main() {
 			}
 
 			n++
-
-		/*case msg := <-msgs:
-		//TODO Deal with a new message
-		// Send the message to all clients that aren't the sender
-
-		for i, client := range clients {
-			if msg.sender != i {
-				fmt.Fprintf(client, msg.message)
-			}
-		}*/
 		default:
 		}
 
 	}
-	/*
-		for {
-			conn, er := ln.Accept()
-
-			if er != nil {
-				fmt.Println("Error!")
-			}
-
-			go handleConnection(&conn, inputChannel, KeyChannel)
-			msg := <-inputChannel
-			stringToMatrix(msg, &conn, KeyChannel)
-			//go handleKeyPresses(&conn, KeyChannel)
-		}*/
 }
