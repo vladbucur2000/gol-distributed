@@ -11,6 +11,7 @@ import (
 )
 
 type myParameters struct {
+	clientid    int
 	world       [][]byte
 	ImageHeight int
 	ImageWidth  int
@@ -33,17 +34,17 @@ func sendKeys(c distributorChannels, conn *net.Conn, keyTurn chan string) {
 		select {
 		case key := <-c.keyPressed:
 			if key == 'p' {
-				text := "kpauseTheGame\t"
+				text := "kpauseTheGame\n"
 				fmt.Fprintf(*conn, text)
 
 			} else if key == 's' {
 				fmt.Println("Saving key sent to server...")
-				text := "ksaveTheGame\t"
+				text := "ksaveTheGame\n"
 				fmt.Fprintf(*conn, text)
 
 			} else if key == 'q' {
 				fmt.Println("Quiting key sent to server...")
-				text := "kquitTheGame\t"
+				text := "kquitTheGame\n"
 				fmt.Fprintf(*conn, text)
 			}
 
@@ -63,9 +64,18 @@ func saveTheWorld(c distributorChannels, p myParameters) {
 func read(c distributorChannels, conn *net.Conn, keyTurn chan string) {
 	reader := bufio.NewReader(*conn)
 	for {
-		msg, _ := reader.ReadString('\n')
-		// keyp23 / keye23
-		if msg[0] == 'm' && msg[1] == 'a' && msg[2] == 'p' {
+		msg, err := reader.ReadString('\n')
+		if err != nil {
+			continue
+		}
+		if len(msg) == 1 {
+			continue
+		}
+		fmt.Println("inainte")
+		fmt.Println(msg)
+		fmt.Println("dupa")
+
+		if msg[1] == 'm' && msg[2] == 'a' && msg[3] == 'p' {
 
 			p := stringToMatrix(msg)
 			saveTheWorld(c, p)
@@ -207,15 +217,15 @@ func convertToString(world [][]byte, p Params) string {
 	ws := numberToString(p.ImageWidth)
 	turn := numberToString(p.Turns)
 	thread := numberToString(p.Threads)
-
+	data = append(data, "0map")
 	data = append(data, hs)
-	data = append(data, "\n")
+	data = append(data, " ")
 	data = append(data, ws)
-	data = append(data, "\n")
+	data = append(data, " ")
 	data = append(data, turn)
-	data = append(data, "\n")
+	data = append(data, " ")
 	data = append(data, thread)
-	data = append(data, "\n")
+	data = append(data, " ")
 
 	for i := 0; i < p.ImageHeight; i++ {
 		for j := 0; j < p.ImageWidth; j++ {
@@ -228,15 +238,16 @@ func convertToString(world [][]byte, p Params) string {
 			}
 
 		}
-		data = append(data, "\n")
+		data = append(data, " ")
 	}
 
-	data = append(data, "\t")
+	data = append(data, "\n")
 
 	return strings.Join(data, "")
 }
 func stringToMatrix(msg string) myParameters {
-	i := 3
+	clientid := (int(msg[0]) - '0')
+	i := 4
 	height := 0
 	width := 0
 	turn := 0
@@ -285,6 +296,7 @@ func stringToMatrix(msg string) myParameters {
 	}
 
 	return myParameters{
+		clientid,
 		world,
 		height,
 		width,
