@@ -71,9 +71,8 @@ func read(c distributorChannels, conn *net.Conn, keyTurn chan string) {
 		if len(msg) == 1 {
 			continue
 		}
-		fmt.Println("inainte")
+
 		fmt.Println(msg)
-		fmt.Println("dupa")
 
 		if msg[1] == 'm' && msg[2] == 'a' && msg[3] == 'p' {
 

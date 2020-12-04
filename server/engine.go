@@ -141,54 +141,6 @@ func createAliveCellsCount(turn, howManyAreAlive int) string {
 	return strings.Join(data, "")
 }
 
-// func worker(originalWorld [][]byte, turn int, ImageHeight, ImageWidth int, start int, end int, height int, outChannel chan byte, inputChannel chan byte, conn *net.Conn) {
-// 	world := make([][]byte, ImageHeight)
-// 	for i := range world {
-// 		world[i] = make([]byte, ImageWidth)
-// 	}
-// 	for i := start; i < end; i++ {
-// 		for j := 0; j < ImageWidth; j++ {
-// 			world[i][j] = <-inputChannel
-// 		}
-// 	}
-
-// 	newWorld := make([][]byte, ImageHeight)
-// 	for i := range newWorld {
-// 		newWorld[i] = make([]byte, ImageWidth)
-// 	}
-
-// 	for i := start; i < end; i++ {
-// 		for j := 0; j < ImageWidth; j++ {
-// 			neighbours := calculateNeighbours(ImageHeight, ImageWidth, j, i, originalWorld)
-// 			if world[i][j] != 0 {
-// 				if neighbours == 2 || neighbours == 3 {
-// 					newWorld[i][j] = 1
-// 				} else {
-// 					newWorld[i][j] = 0
-// 					msg := createCellFlipped(i, j, turn)
-// 					fmt.Fprintln(*conn, msg)
-// 				}
-// 			} else {
-// 				if neighbours == 3 {
-// 					newWorld[i][j] = 1
-// 					msg := createCellFlipped(i, j, turn)
-// 					fmt.Fprintln(*conn, msg)
-// 				} else {
-// 					newWorld[i][j] = 0
-// 				}
-// 			}
-// 		}
-
-// 	}
-
-// 	for i := start; i < end; i++ {
-// 		for j := 0; j < ImageWidth; j++ {
-// 			outChannel <- newWorld[i][j]
-// 		}
-// 	}
-
-// }
-
 func getWorkerWorld(r int, world [][]byte, workerHeight int, ImageHeight int, ImageWidth int, thread int) [][]byte {
 	workerWorld := make([][]byte, workerHeight+2)
 	for i := range workerWorld {
@@ -214,7 +166,7 @@ func getWorkerWorld(r int, world [][]byte, workerHeight int, ImageHeight int, Im
 }
 
 func startNode(workerHeight int, turn int, ImageHeight, ImageWidth int, world [][]byte, thread int, outChannel chan byte, conn *net.Conn, clients map[int]net.Conn) {
-	nodeWorldString := convertToString(world, workerHeight, ImageWidth, 0, 0, thread)
+	nodeWorldString := convertToString(world, workerHeight, ImageWidth, thread, turn, thread)
 	// fmt.Println("Client:", thread)
 	// fmt.Println(nodeWorldString)
 	fmt.Fprintf(clients[thread], nodeWorldString)
@@ -373,7 +325,7 @@ func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world 
 				unifyWorldHelper[i] = make([]byte, ImageWidth)
 			}
 			p := <-nodeChan[thread]
-			fmt.Println("inecracam asa : ", p.clientid)
+			//fmt.Println("inecracam asa : ", p.clientid)
 			//Te pup vladuc <3
 			for i := 0; i < workerHeight; i++ {
 				for j := 0; j < ImageWidth; j++ {
@@ -385,34 +337,21 @@ func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world 
 					unifyWorld[mod(thread*workerHeight+i, ImageHeight)][j] = unifyWorldHelper[i][j]
 				}
 			}
-			// outWorld := make([][]byte, workerHeight)
-			// for i := range outWorld {
-			// 	outWorld[i] = make([]byte, ImageWidth)
-			// }
-			// for i := 0; i < workerHeight; i++ {
-			// 	for j := 0; j < ImageWidth; j++ {
-			// 		outWorld[i][j] = <-outChannel[thread]
-			// 	}
-			// }
-			// for i := 0; i < workerHeight; i++ {
-			// 	for j := 0; j < ImageWidth; j++ {
-			// 		world[(thread*workerHeight+i+ImageHeight)%ImageHeight][j] = outWorld[i][j]
-			// 	}
-			// }
+
 		}
 
 		for i := 0; i < ImageHeight; i++ {
 			for j := 0; j < ImageWidth; j++ {
-				if unifyWorld[i][j] != workingWorld[i][j] {
-					msg := createCellFlipped(i, j, turn)
-					fmt.Fprintf(*conn, msg)
-				}
+				// if unifyWorld[i][j] != workingWorld[i][j] {
+				// 	msg := createCellFlipped(i, j, turn)
+				// 	fmt.Fprintf(*conn, msg)
+				// }
 				workingWorld[i][j] = unifyWorld[i][j]
 			}
 		}
 		turnCompleteString := createTurnComplete(turn)
 		fmt.Fprintln(*conn, turnCompleteString)
-		myVisualiseMatrix(workingWorld, ImageWidth, ImageHeight)
+		//myVisualiseMatrix(workingWorld, ImageWidth, ImageHeight)
 
 	}
 	worldString := convertToString(workingWorld, ImageHeight, ImageWidth, Turns, Threads, 0)
@@ -431,6 +370,7 @@ func handleConnection(conn *net.Conn, inputChannel chan string, KeyChannel chan 
 		if er != nil { //controller has been disconnected
 			continue
 		}
+
 		if msg[0] == 'k' {
 			fmt.Println("AM intrat2")
 			KeyChannel <- msg
@@ -451,7 +391,7 @@ func acceptConns(ln net.Listener, conns chan net.Conn) {
 	}
 }
 
-func handleNode(client *net.Conn, clientid int, nodeChan []chan myParameters) {
+func handleNode(cellFlippedTransition chan string, client *net.Conn, clientid int, nodeChan []chan myParameters) {
 	reader := bufio.NewReader(*client)
 	for {
 		msg, er := reader.ReadString('\n')
@@ -459,28 +399,23 @@ func handleNode(client *net.Conn, clientid int, nodeChan []chan myParameters) {
 			continue
 		}
 		if msg[1] == 'm' && msg[2] == 'a' && msg[3] == 'p' {
-			// fmt.Println(msg)
 			p := stringToMatrix(msg)
-
 			nodeChan[clientid] <- p
-
+		} else if msg[0] == 'c' && msg[1] == 'f' {
+			cellFlippedTransition <- msg
 		}
-		//fmt.Println("ce pula mea zici sunt nodu nr", clientid, " mesaju meu este:", msg, "\n")
-		//	fmt.Fprintf(*client, "te ascult nebune\n")
 
 	}
 }
 
-// func sendWorld(client *net.Conn, nodeChan chan string) {
-// 	for {
-// 		select {
-// 		case msg := <-nodeChan:
-// 			fmt.Println(msg)
-// 			fmt.Fprintf(*client, msg)
-// 		default:
-// 		}
-// 	}
-// }
+func handleCellFlippedTransitions(conn *net.Conn, cellFlippedTransition chan string) {
+	for {
+		select {
+		case msg := <-cellFlippedTransition:
+			fmt.Fprintf(*conn, msg)
+		}
+	}
+}
 
 func main() {
 	KeyChannel := make(chan string)
@@ -500,8 +435,10 @@ func main() {
 	for i := range nodeChan {
 		nodeChan[i] = make(chan myParameters)
 	}
+	cellFlippedTransition := make(chan string)
 	go acceptConns(ln, conns)
 	n := 0
+
 	for {
 		select {
 		case conn := <-conns:
@@ -511,27 +448,30 @@ func main() {
 
 			if n >= 4 {
 				go handleConnection(&conn, inputChannel, KeyChannel)
+				go handleCellFlippedTransitions(&conn, cellFlippedTransition)
 				msg := <-inputChannel
 				p := stringToMatrix(msg)
 				playTheGame(p.ImageHeight, p.ImageWidth, p.Turns, p.Threads, p.world, &conn, KeyChannel, clients, nodeChan)
 			}
 
 			if n <= 3 {
-				go handleNode(&client, n, nodeChan)
+				go handleNode(cellFlippedTransition, &client, n, nodeChan)
 			}
 
 			n++
 
-			/*case msg := <-msgs:
-			//TODO Deal with a new message
-			// Send the message to all clients that aren't the sender
+		/*case msg := <-msgs:
+		//TODO Deal with a new message
+		// Send the message to all clients that aren't the sender
 
-			for i, client := range clients {
-				if msg.sender != i {
-					fmt.Fprintf(client, msg.message)
-				}
-			}*/
+		for i, client := range clients {
+			if msg.sender != i {
+				fmt.Fprintf(client, msg.message)
+			}
+		}*/
+		default:
 		}
+
 	}
 	/*
 		for {

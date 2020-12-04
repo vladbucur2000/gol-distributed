@@ -93,13 +93,29 @@ func calculateNeighbours(ImageHeight, ImageWidth, x, y int, world [][]byte) int 
 	return neighbours
 }
 
-func computeWorld(p myParameters) [][]byte {
+func createCellFlipped(i int, j int, turn int) string {
+	var data []string
+	data = append(data, "cf")
+	data = append(data, strconv.Itoa(i))
+	data = append(data, " ")
+	data = append(data, strconv.Itoa(j))
+	data = append(data, " ")
+	data = append(data, strconv.Itoa(turn))
+	data = append(data, "\n")
+
+	return strings.Join(data, "")
+
+}
+
+func computeWorld(conn *net.Conn, p myParameters) [][]byte {
 
 	newWorld := make([][]byte, p.ImageHeight)
 	for i := range newWorld {
 		newWorld[i] = make([]byte, p.ImageWidth)
 	}
-
+	wholeImage := 4 * (p.ImageHeight - 2)
+	// fmt.Println(mod(p.clientid*(p.ImageHeight-2), wholeImage))
+	// fmt.Println(mod(p.clientid*(p.ImageHeight-2)+p.ImageHeight-2, p.ImageHeight))
 	for i := 1; i < p.ImageHeight-1; i++ {
 		for j := 0; j < p.ImageWidth; j++ {
 			neighbours := calculateNeighbours(p.ImageHeight, p.ImageWidth, j, i, p.world)
@@ -108,10 +124,14 @@ func computeWorld(p myParameters) [][]byte {
 					newWorld[i][j] = 1
 				} else {
 					newWorld[i][j] = 0
+					msg := createCellFlipped(mod(p.clientid*(p.ImageHeight-2)+i+wholeImage, wholeImage), j, p.Turns)
+					fmt.Fprintf(*conn, msg)
 				}
 			} else {
 				if neighbours == 3 {
 					newWorld[i][j] = 1
+					msg := createCellFlipped(mod(p.clientid*(p.ImageHeight-2)+i+wholeImage, wholeImage), j, p.Turns)
+					fmt.Fprintf(*conn, msg)
 				} else {
 					newWorld[i][j] = 0
 				}
@@ -174,9 +194,9 @@ func read(conn *net.Conn) {
 		}
 		if line[1] == 'm' && line[2] == 'a' && line[3] == 'p' {
 			p := stringToMatrix(line)
-			newWorld := computeWorld(p)
+			newWorld := computeWorld(conn, p)
 			newWorldString := convertToString(newWorld, p)
-			fmt.Println(newWorldString)
+			//fmt.Println(newWorldString)
 			fmt.Fprintf(*conn, newWorldString)
 		}
 
