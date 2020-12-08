@@ -311,7 +311,7 @@ func stringToMatrix(msg string) myParameters {
 // distributor divides the work between workers and interacts with other goroutines.
 func controller(p Params, c distributorChannels) {
 
-	conn, _ := net.Dial("tcp", "127.0.0.1:8080")
+	conn, _ := net.Dial("tcp", "34.230.77.219:8080")
 
 	world := make([][]byte, p.ImageHeight)
 	for i := range world {
