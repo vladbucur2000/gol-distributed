@@ -320,15 +320,6 @@ func playTheGame(p myParameters, conn *net.Conn, KeyChannel chan string, clients
 				unifyWorldHelper[i] = make([]byte, p.ImageWidth)
 			}
 			params := <-nodeChan[node]
-			// fmt.Println("AM intrat")
-			// fmt.Println(params.ImageHeight)
-			// for i := 0; i < workerHeight; i++ {
-			// 	for j := 0; j < params.ImageWidth; j++ {
-			// 		fmt.Print(params.world[i][j])
-			// 	}
-			// 	fmt.Println()
-			// }
-			// fmt.Println("AM terminat")
 			for i := 0; i < workerHeight; i++ {
 				for j := 0; j < params.ImageWidth; j++ {
 					unifyWorldHelper[i][j] = params.world[i][j]
