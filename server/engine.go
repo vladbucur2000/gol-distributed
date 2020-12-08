@@ -126,7 +126,7 @@ func createFinalTurnComplete(turn int, world [][]byte, heigth int, width int) st
 func createTurnComplete(turn int) string {
 	var data []string
 	data = append(data, "tc")
-	data = append(data, strconv.Itoa(turn))
+	data = append(data, numberToString(turn))
 	data = append(data, "\n")
 	return strings.Join(data, "")
 }
@@ -162,9 +162,11 @@ func getWorkerWorld(r int, world [][]byte, workerHeight int, ImageHeight int, Im
 	return workerWorld
 }
 
-func startNode(workerHeight int, turn int, ImageHeight, ImageWidth int, world [][]byte, thread int, outChannel chan byte, conn *net.Conn, clients map[int]net.Conn) {
-	nodeWorldString := convertToString(world, workerHeight, ImageWidth, thread, turn, thread)
-	fmt.Fprintf(clients[thread], nodeWorldString)
+func startNode(workerHeight int, turn int, ImageHeight, ImageWidth int, world [][]byte, threads int, node int, conn *net.Conn, clients map[int]net.Conn) {
+	nodeWorldString := convertToString(world, workerHeight, ImageWidth, turn, threads, node)
+	// fmt.Println("Aici trimit la nod")
+	// fmt.Println(nodeWorldString)
+	fmt.Fprintf(clients[node], nodeWorldString)
 }
 
 func myVisualiseMatrix(world [][]byte, ImageWidth, ImageHeight int) {
@@ -187,6 +189,7 @@ func convertToString(world [][]byte, ImageHeight, ImageWidth, Turns, Threads int
 	ws := numberToString(ImageWidth)
 	turn := numberToString(Turns)
 	thread := numberToString(Threads)
+
 	data = append(data, numberToString(clientid))
 	data = append(data, "map")
 	data = append(data, hs)
@@ -225,33 +228,29 @@ func createStateChange(turn int, state string) string {
 	data = append(data, "\n")
 	return strings.Join(data, "")
 }
-func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world [][]byte, conn *net.Conn, KeyChannel chan string, clients map[int]net.Conn, nodeChan []chan myParameters) {
+func playTheGame(p myParameters, conn *net.Conn, KeyChannel chan string, clients map[int]net.Conn, nodeChan []chan myParameters) {
 
-	workingWorld := make([][]byte, ImageHeight)
-	for i := range world {
-		workingWorld[i] = make([]byte, ImageWidth)
+	workingWorld := make([][]byte, p.ImageHeight)
+	for i := range p.world {
+		workingWorld[i] = make([]byte, p.ImageWidth)
 	}
 
-	for i := 0; i < ImageHeight; i++ {
-		for j := 0; j < ImageWidth; j++ {
-			val := world[i][j]
+	for i := 0; i < p.ImageHeight; i++ {
+		for j := 0; j < p.ImageWidth; j++ {
+			val := p.world[i][j]
 			workingWorld[i][j] = val
-			if val != 0 {
-				msg := createCellFlipped(i, j, 0)
-				fmt.Fprintln(*conn, msg)
-			}
 		}
 	}
 	ticker := time.NewTicker(2000 * time.Millisecond)
 	turn := 0
-	for ; turn < Turns; turn++ {
+	for ; turn < p.Turns; turn++ {
 
 		select {
 		//AICI INTRA KEY URILE
 		case key := <-KeyChannel:
 			if key == "kpauseTheGame\n" {
 
-				worldString := convertToString(workingWorld, ImageHeight, ImageWidth, Turns, Threads, 0)
+				worldString := convertToString(workingWorld, p.ImageHeight, p.ImageWidth, p.Turns, p.Threads, 0)
 				fmt.Fprintln(*conn, worldString)
 
 				fmt.Fprintln(*conn, createStateChange(turn, "p"))
@@ -265,15 +264,15 @@ func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world 
 					}
 				}
 			} else if key == "ksaveTheGame\n" {
-				worldString := convertToString(workingWorld, ImageHeight, ImageWidth, Turns, Threads, 0)
+				worldString := convertToString(workingWorld, p.ImageHeight, p.ImageWidth, p.Turns, p.Threads, 0)
 				fmt.Fprintln(*conn, worldString)
 			} else if key == "kquitTheGame\n" {
-				worldString := convertToString(workingWorld, ImageHeight, ImageWidth, Turns, Threads, 0)
+				worldString := convertToString(workingWorld, p.ImageHeight, p.ImageWidth, p.Turns, p.Threads, 0)
 				fmt.Fprintln(*conn, worldString)
 				fmt.Fprintln(*conn, createStateChange(turn, "q"))
 				return
 			} else if key == "kshutDown\n" {
-				worldString := convertToString(workingWorld, ImageHeight, ImageWidth, Turns, Threads, 0)
+				worldString := convertToString(workingWorld, p.ImageHeight, p.ImageWidth, p.Turns, p.Threads, 0)
 				fmt.Fprintln(*conn, worldString)
 				fmt.Fprintln(*conn, createStateChange(turn, "q"))
 				msg := "kshutDown\n"
@@ -284,8 +283,8 @@ func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world 
 			}
 		case <-ticker.C:
 			howManyAreAlive := 0
-			for i := 0; i < ImageHeight; i++ {
-				for j := 0; j < ImageWidth; j++ {
+			for i := 0; i < p.ImageHeight; i++ {
+				for j := 0; j < p.ImageWidth; j++ {
 					if workingWorld[i][j] != 0 {
 						howManyAreAlive++
 					}
@@ -297,59 +296,69 @@ func playTheGame(ImageHeight int, ImageWidth int, Turns int, Threads int, world 
 		}
 
 		nodes := 4
-		workerHeight := ImageHeight / nodes
-		outChannel := make([]chan byte, nodes)
+		workerHeight := p.ImageHeight / nodes
 
-		newWorld := make([][]byte, ImageHeight)
+		newWorld := make([][]byte, p.ImageHeight)
 
 		for i := range workingWorld {
-			newWorld[i] = make([]byte, ImageWidth)
+			newWorld[i] = make([]byte, p.ImageWidth)
 		}
 
-		for thread := 0; thread < nodes; thread++ {
-
-			outChannel[thread] = make(chan byte)
-
-			nodeWorldBytes := getWorkerWorld(0, workingWorld, workerHeight, ImageHeight, ImageWidth, thread)
-			startNode(workerHeight+2, turn, ImageHeight, ImageWidth, nodeWorldBytes, thread, outChannel[thread], conn, clients)
+		for node := 0; node < nodes; node++ {
+			nodeWorldBytes := getWorkerWorld(0, workingWorld, workerHeight, p.ImageHeight, p.ImageWidth, node)
+			startNode(workerHeight+2, turn, p.ImageHeight, p.ImageWidth, nodeWorldBytes, p.Threads, node, conn, clients)
 		}
 
-		unifyWorld := make([][]byte, ImageHeight)
+		unifyWorld := make([][]byte, p.ImageHeight)
 		for i := range unifyWorld {
-			unifyWorld[i] = make([]byte, ImageWidth)
+			unifyWorld[i] = make([]byte, p.ImageWidth)
 		}
-		for thread := 0; thread < nodes; thread++ {
+
+		for node := 0; node < nodes; node++ {
 			unifyWorldHelper := make([][]byte, workerHeight)
 			for i := range unifyWorldHelper {
-				unifyWorldHelper[i] = make([]byte, ImageWidth)
+				unifyWorldHelper[i] = make([]byte, p.ImageWidth)
 			}
-			p := <-nodeChan[thread]
+			params := <-nodeChan[node]
+			// fmt.Println("AM intrat")
+			// fmt.Println(params.ImageHeight)
+			// for i := 0; i < workerHeight; i++ {
+			// 	for j := 0; j < params.ImageWidth; j++ {
+			// 		fmt.Print(params.world[i][j])
+			// 	}
+			// 	fmt.Println()
+			// }
+			// fmt.Println("AM terminat")
 			for i := 0; i < workerHeight; i++ {
-				for j := 0; j < ImageWidth; j++ {
-					unifyWorldHelper[i][j] = p.world[i][j]
+				for j := 0; j < params.ImageWidth; j++ {
+					unifyWorldHelper[i][j] = params.world[i][j]
 				}
 			}
 			for i := 0; i < workerHeight; i++ {
-				for j := 0; j < ImageWidth; j++ {
-					unifyWorld[mod(thread*workerHeight+i, ImageHeight)][j] = unifyWorldHelper[i][j]
+				for j := 0; j < p.ImageWidth; j++ {
+					unifyWorld[mod(node*workerHeight+i, p.ImageHeight)][j] = unifyWorldHelper[i][j]
 				}
 			}
 
 		}
 
-		for i := 0; i < ImageHeight; i++ {
-			for j := 0; j < ImageWidth; j++ {
+		for i := 0; i < p.ImageHeight; i++ {
+			for j := 0; j < p.ImageWidth; j++ {
+				if workingWorld[i][j] != unifyWorld[i][j] {
+					msg := createCellFlipped(i, j, turn)
+					fmt.Fprintf(*conn, msg)
+				}
 				workingWorld[i][j] = unifyWorld[i][j]
 			}
 		}
 		turnCompleteString := createTurnComplete(turn)
 		fmt.Fprintln(*conn, turnCompleteString)
-		myVisualiseMatrix(workingWorld, ImageWidth, ImageHeight)
+		//myVisualiseMatrix(workingWorld, p.ImageWidth, p.ImageHeight)
 
 	}
-	worldString := convertToString(workingWorld, ImageHeight, ImageWidth, Turns, Threads, 0)
+	worldString := convertToString(workingWorld, p.ImageHeight, p.ImageWidth, p.Turns, p.Threads, 0)
 	fmt.Fprintln(*conn, worldString)
-	finalTurnCompleteString := createFinalTurnComplete(turn, workingWorld, ImageHeight, ImageWidth)
+	finalTurnCompleteString := createFinalTurnComplete(turn, workingWorld, p.ImageHeight, p.ImageWidth)
 	fmt.Fprintln(*conn, finalTurnCompleteString)
 
 }
@@ -368,6 +377,7 @@ func handleConnection(conn *net.Conn, inputChannel chan string, KeyChannel chan 
 			fmt.Println("Pressed Key")
 			KeyChannel <- msg
 		} else {
+			fmt.Println(msg)
 			inputChannel <- msg
 		}
 	}
@@ -392,6 +402,8 @@ func handleNode(cellFlippedTransition chan string, client *net.Conn, clientid in
 		}
 		if msg[1] == 'm' && msg[2] == 'a' && msg[3] == 'p' {
 			p := stringToMatrix(msg)
+			// fmt.Println("Aiuci primesc de la nod:")
+			// fmt.Println(msg)
 			nodeChan[clientid] <- p
 		} else if msg[0] == 'c' && msg[1] == 'f' {
 			cellFlippedTransition <- msg
@@ -443,7 +455,7 @@ func main() {
 				go handleCellFlippedTransitions(&conn, cellFlippedTransition)
 				msg := <-inputChannel
 				p := stringToMatrix(msg)
-				playTheGame(p.ImageHeight, p.ImageWidth, p.Turns, p.Threads, p.world, &conn, KeyChannel, clients, nodeChan)
+				playTheGame(p, &conn, KeyChannel, clients, nodeChan)
 			}
 
 			if n <= 3 {

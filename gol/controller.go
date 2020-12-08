@@ -36,16 +36,16 @@ func sendKeys(c distributorChannels, conn *net.Conn, keyTurn chan string) {
 		select {
 		case key := <-c.keyPressed:
 			if key == 'p' {
+				fmt.Println("Pause key sent to server...")
 				text := "kpauseTheGame\n"
 				fmt.Fprintf(*conn, text)
-
 			} else if key == 's' {
-				fmt.Println("Saving key sent to server...")
+				fmt.Println("Save key sent to server...")
 				text := "ksaveTheGame\n"
 				fmt.Fprintf(*conn, text)
 
 			} else if key == 'q' {
-				fmt.Println("Quiting key sent to server...")
+				fmt.Println("Quit key sent to server...")
 				text := "kquitTheGame\n"
 				fmt.Fprintf(*conn, text)
 			} else if key == 'k' {
@@ -90,9 +90,9 @@ func read(c distributorChannels, conn *net.Conn, keyTurn chan string) {
 			if msg[3] == 'p' {
 				state = Paused
 			} else if msg[3] == 'e' {
-				state = 1
+				state = Executing
 			} else if msg[3] == 'q' {
-				state = 2
+				state = Quitting
 			}
 			i := 4
 			turn := 0
@@ -103,9 +103,6 @@ func read(c distributorChannels, conn *net.Conn, keyTurn chan string) {
 			c.events <- StateChange{
 				turn,
 				state,
-			}
-			if state == 2 {
-				//return
 			}
 			//CELLFLIPPED RECEIVED
 		} else if msg[0] == 'a' && msg[1] == 'c' && msg[2] == 'c' {
@@ -121,7 +118,6 @@ func read(c distributorChannels, conn *net.Conn, keyTurn chan string) {
 				howManyAreComplete = howManyAreComplete*10 + (int(msg[i]) - '0')
 				i++
 			}
-			//fmt.Println(howManyAreComplete)
 			c.events <- AliveCellsCount{
 				turn,
 				howManyAreComplete,
@@ -145,6 +141,10 @@ func read(c distributorChannels, conn *net.Conn, keyTurn chan string) {
 				turn = turn*10 + (int(msg[i]) - '0')
 				i++
 			}
+
+			fmt.Println("x:", x)
+			fmt.Println("y:", y)
+			fmt.Println("turn:", turn)
 			c.events <- CellFlipped{
 				turn,
 				util.Cell{
@@ -152,7 +152,6 @@ func read(c distributorChannels, conn *net.Conn, keyTurn chan string) {
 					Y: y,
 				},
 			}
-			//	break
 			//TURN COMPLETE
 		} else if msg[0] == 't' && msg[1] == 'c' {
 			i := 2
@@ -314,7 +313,6 @@ func controller(p Params, c distributorChannels) {
 
 	conn, _ := net.Dial("tcp", "127.0.0.1:8080")
 
-	//citesc lumea
 	world := make([][]byte, p.ImageHeight)
 	for i := range world {
 		world[i] = make([]byte, p.ImageWidth)
@@ -328,6 +326,15 @@ func controller(p Params, c distributorChannels) {
 		for j := 0; j < p.ImageWidth; j++ {
 			val := <-c.ioInput
 			world[i][j] = val
+			if val != 0 {
+				c.events <- CellFlipped{
+					0,
+					util.Cell{
+						X: j,
+						Y: i,
+					},
+				}
+			}
 		}
 	}
 
