@@ -6,7 +6,7 @@ import (
 )
 
 func VisualiseMatrix(given [][]uint8, width, height int) {
-	fmt.Print(MatricesToString(given, nil, width, height))
+	fmt.Print(matricesToString(given, nil, width, height))
 }
 
 func (c1 Cell) in(slice []Cell) bool {
@@ -47,7 +47,7 @@ func AliveCellsToString(given, expected []Cell, width, height int) string {
 	return strings.Join(output, "")
 }
 
-func MatricesToString(given, expected [][]uint8, width, height int) string {
+func matricesToString(given, expected [][]uint8, width, height int) string {
 	var output []string
 	output = append(output, "  Your world matrix:                     ")
 	if expected != nil {

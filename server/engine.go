@@ -36,6 +36,7 @@ func calculateNeighbours(ImageHeight, ImageWidth, x, y int, world [][]byte) int 
 	return neighbours
 }
 
+//Parse the incoming string to the create computable variables
 func stringToMatrix(msg string) myParameters {
 	clientid := (int(msg[0]) - '0')
 	i := 4
@@ -88,6 +89,7 @@ func stringToMatrix(msg string) myParameters {
 
 }
 
+//Create a message which reports contains the necessary data for the CellFlipped event
 func createCellFlipped(i int, j int, turn int) string {
 	var data []string
 	data = append(data, "cf")
@@ -102,6 +104,7 @@ func createCellFlipped(i int, j int, turn int) string {
 
 }
 
+//Create a message which reports and contains the necessary data for the FinalTurnComplete event
 func createFinalTurnComplete(turn int, world [][]byte, heigth int, width int) string {
 	var data []string
 	data = append(data, "ftc")
@@ -123,6 +126,7 @@ func createFinalTurnComplete(turn int, world [][]byte, heigth int, width int) st
 	return strings.Join(data, "")
 }
 
+//Create a message which reports and contains the necessary data for the TurnComplete event
 func createTurnComplete(turn int) string {
 	var data []string
 	data = append(data, "tc")
@@ -130,6 +134,8 @@ func createTurnComplete(turn int) string {
 	data = append(data, "\n")
 	return strings.Join(data, "")
 }
+
+//Create a message which reports and contains the necessary data for the AliveCellsCount event
 func createAliveCellsCount(turn, howManyAreAlive int) string {
 	var data []string
 	data = append(data, "acc")
@@ -140,6 +146,17 @@ func createAliveCellsCount(turn, howManyAreAlive int) string {
 	return strings.Join(data, "")
 }
 
+//Create a message which reports and contains the necessary data for the StateChange event
+func createStateChange(turn int, state string) string {
+	var data []string
+	data = append(data, "key")
+	data = append(data, state)
+	data = append(data, numberToString(turn))
+	data = append(data, "\n")
+	return strings.Join(data, "")
+}
+
+//Split the board between the AWS Nodes
 func getWorkerWorld(r int, world [][]byte, workerHeight int, ImageHeight int, ImageWidth int, thread int) [][]byte {
 	workerWorld := make([][]byte, workerHeight+2)
 	for i := range workerWorld {
@@ -162,13 +179,13 @@ func getWorkerWorld(r int, world [][]byte, workerHeight int, ImageHeight int, Im
 	return workerWorld
 }
 
+//Send the splitted matrix to a specific AWS Node
 func startNode(workerHeight int, turn int, ImageHeight, ImageWidth int, world [][]byte, threads int, node int, conn *net.Conn, clients map[int]net.Conn) {
 	nodeWorldString := convertToString(world, workerHeight, ImageWidth, turn, threads, node)
-	// fmt.Println("Aici trimit la nod")
-	// fmt.Println(nodeWorldString)
 	fmt.Fprintf(clients[node], nodeWorldString)
 }
 
+//Function to visualise the actual board in terminal
 func myVisualiseMatrix(world [][]byte, ImageWidth, ImageHeight int) {
 	for i := 0; i < ImageHeight; i++ {
 		for j := 0; j < ImageWidth; j++ {
@@ -182,9 +199,10 @@ func numberToString(nr int) string {
 	return strconv.Itoa(nr)
 }
 
+//Convert matrix and parameters to one string in order to be sent through TCP
 func convertToString(world [][]byte, ImageHeight, ImageWidth, Turns, Threads int, clientid int) string {
-	var data []string
 
+	var data []string
 	hs := numberToString(ImageHeight)
 	ws := numberToString(ImageWidth)
 	turn := numberToString(Turns)
@@ -220,14 +238,7 @@ func convertToString(world [][]byte, ImageHeight, ImageWidth, Turns, Threads int
 	return strings.Join(data, "")
 }
 
-func createStateChange(turn int, state string) string {
-	var data []string
-	data = append(data, "key")
-	data = append(data, state)
-	data = append(data, numberToString(turn))
-	data = append(data, "\n")
-	return strings.Join(data, "")
-}
+//The Manager of Engine
 func playTheGame(p myParameters, conn *net.Conn, KeyChannel chan string, clients map[int]net.Conn, nodeChan []chan myParameters) {
 
 	workingWorld := make([][]byte, p.ImageHeight)
@@ -241,47 +252,50 @@ func playTheGame(p myParameters, conn *net.Conn, KeyChannel chan string, clients
 			workingWorld[i][j] = val
 		}
 	}
+	//Reports every 2 seconds the alive cells
 	ticker := time.NewTicker(2000 * time.Millisecond)
 	turn := 0
 	for ; turn < p.Turns; turn++ {
-
 		select {
-		//AICI INTRA KEY URILE
+		//If any key is pressed
 		case key := <-KeyChannel:
+			//The Pause key has been pressed
 			if key == "kpauseTheGame\n" {
-
 				worldString := convertToString(workingWorld, p.ImageHeight, p.ImageWidth, p.Turns, p.Threads, 0)
 				fmt.Fprintln(*conn, worldString)
-
 				fmt.Fprintln(*conn, createStateChange(turn, "p"))
-
 				for {
-
+					//The Pause key has been pressed again, so start executing
 					key2 := <-KeyChannel
 					if key2 == "kpauseTheGame\n" {
 						fmt.Fprintln(*conn, createStateChange(turn, "e"))
 						break
 					}
 				}
+				//The Save key has been pressed
 			} else if key == "ksaveTheGame\n" {
+				//Send the actual board to the controller in order to be saved as a PGM
 				worldString := convertToString(workingWorld, p.ImageHeight, p.ImageWidth, p.Turns, p.Threads, 0)
 				fmt.Fprintln(*conn, worldString)
 			} else if key == "kquitTheGame\n" {
+				//The Quit key has been pressed -> The actual board will be saved -> the controller disconnects
 				worldString := convertToString(workingWorld, p.ImageHeight, p.ImageWidth, p.Turns, p.Threads, 0)
 				fmt.Fprintln(*conn, worldString)
 				fmt.Fprintln(*conn, createStateChange(turn, "q"))
 				return
 			} else if key == "kshutDown\n" {
+				//The ShutDown key has been pressed -> All the distributed components will shut down cleanly
 				worldString := convertToString(workingWorld, p.ImageHeight, p.ImageWidth, p.Turns, p.Threads, 0)
 				fmt.Fprintln(*conn, worldString)
 				fmt.Fprintln(*conn, createStateChange(turn, "q"))
 				msg := "kshutDown\n"
-				for i, _ := range clients {
+				for i := 0; i < 4; i++ {
 					fmt.Fprintf(clients[i], msg)
 				}
 				os.Exit(3)
 			}
 		case <-ticker.C:
+			//AliveCellsCount every 2 seconds
 			howManyAreAlive := 0
 			for i := 0; i < p.ImageHeight; i++ {
 				for j := 0; j < p.ImageWidth; j++ {
@@ -298,22 +312,17 @@ func playTheGame(p myParameters, conn *net.Conn, KeyChannel chan string, clients
 		nodes := 4
 		workerHeight := p.ImageHeight / nodes
 
-		newWorld := make([][]byte, p.ImageHeight)
-
-		for i := range workingWorld {
-			newWorld[i] = make([]byte, p.ImageWidth)
-		}
-
+		//Split and send the world between nodes in order to start computing
 		for node := 0; node < nodes; node++ {
 			nodeWorldBytes := getWorkerWorld(0, workingWorld, workerHeight, p.ImageHeight, p.ImageWidth, node)
 			startNode(workerHeight+2, turn, p.ImageHeight, p.ImageWidth, nodeWorldBytes, p.Threads, node, conn, clients)
 		}
-
+		//Auxiliary world
 		unifyWorld := make([][]byte, p.ImageHeight)
 		for i := range unifyWorld {
 			unifyWorld[i] = make([]byte, p.ImageWidth)
 		}
-
+		//Receive computer worlds from AWS Nodes and start unifying them
 		for node := 0; node < nodes; node++ {
 			unifyWorldHelper := make([][]byte, workerHeight)
 			for i := range unifyWorldHelper {
@@ -330,9 +339,8 @@ func playTheGame(p myParameters, conn *net.Conn, KeyChannel chan string, clients
 					unifyWorld[mod(node*workerHeight+i, p.ImageHeight)][j] = unifyWorldHelper[i][j]
 				}
 			}
-
 		}
-
+		//Rewrite the original World and send CellFlipped messages to controller where the cells change state
 		for i := 0; i < p.ImageHeight; i++ {
 			for j := 0; j < p.ImageWidth; j++ {
 				if workingWorld[i][j] != unifyWorld[i][j] {
@@ -342,11 +350,13 @@ func playTheGame(p myParameters, conn *net.Conn, KeyChannel chan string, clients
 				workingWorld[i][j] = unifyWorld[i][j]
 			}
 		}
+		//Reports to controller that a turn has been completed
 		turnCompleteString := createTurnComplete(turn)
 		fmt.Fprintln(*conn, turnCompleteString)
 		//myVisualiseMatrix(workingWorld, p.ImageWidth, p.ImageHeight)
 
 	}
+	//Reports to controller that all turns have been completed and send the last board as well
 	worldString := convertToString(workingWorld, p.ImageHeight, p.ImageWidth, p.Turns, p.Threads, 0)
 	fmt.Fprintln(*conn, worldString)
 	finalTurnCompleteString := createFinalTurnComplete(turn, workingWorld, p.ImageHeight, p.ImageWidth)
@@ -354,21 +364,18 @@ func playTheGame(p myParameters, conn *net.Conn, KeyChannel chan string, clients
 
 }
 
+//Handle connection between controller and engine
 func handleConnection(conn *net.Conn, inputChannel chan string, KeyChannel chan string) {
-
 	reader := bufio.NewReader(*conn)
 	for {
 		msg, er := reader.ReadString('\n')
-
 		if er != nil {
 			continue
 		}
-
 		if msg[0] == 'k' {
-			fmt.Println("Pressed Key")
+			//Receive key
 			KeyChannel <- msg
 		} else {
-			fmt.Println(msg)
 			inputChannel <- msg
 		}
 	}
@@ -384,7 +391,8 @@ func acceptConns(ln net.Listener, conns chan net.Conn) {
 	}
 }
 
-func handleNode(cellFlippedTransition chan string, client *net.Conn, clientid int, nodeChan []chan myParameters) {
+//Handle connection between AWS Nodes and the Engine
+func handleNode(client *net.Conn, clientid int, nodeChan []chan myParameters) {
 	reader := bufio.NewReader(*client)
 	for {
 		msg, er := reader.ReadString('\n')
@@ -392,22 +400,9 @@ func handleNode(cellFlippedTransition chan string, client *net.Conn, clientid in
 			continue
 		}
 		if msg[1] == 'm' && msg[2] == 'a' && msg[3] == 'p' {
+			//Receive computer board from nodes
 			p := stringToMatrix(msg)
-			// fmt.Println("Aiuci primesc de la nod:")
-			// fmt.Println(msg)
 			nodeChan[clientid] <- p
-		} else if msg[0] == 'c' && msg[1] == 'f' {
-			cellFlippedTransition <- msg
-		}
-
-	}
-}
-
-func handleCellFlippedTransitions(conn *net.Conn, cellFlippedTransition chan string) {
-	for {
-		select {
-		case msg := <-cellFlippedTransition:
-			fmt.Fprintf(*conn, msg)
 		}
 	}
 }
@@ -430,11 +425,11 @@ func main() {
 	for i := range nodeChan {
 		nodeChan[i] = make(chan myParameters)
 	}
-	cellFlippedTransition := make(chan string)
 	go acceptConns(ln, conns)
 	n := 0
 
 	for {
+		//FILTER CONNECTIONS
 		select {
 		case conn := <-conns:
 
@@ -442,15 +437,15 @@ func main() {
 			clients[n] = conn
 
 			if n >= 4 {
+				//Connect the controller -> Parse the board -> start the game
 				go handleConnection(&conn, inputChannel, KeyChannel)
-				go handleCellFlippedTransitions(&conn, cellFlippedTransition)
 				msg := <-inputChannel
 				p := stringToMatrix(msg)
 				playTheGame(p, &conn, KeyChannel, clients, nodeChan)
 			}
-
+			//The first 3 connections will be AWS Nodes
 			if n <= 3 {
-				go handleNode(cellFlippedTransition, &client, n, nodeChan)
+				go handleNode(&client, n, nodeChan)
 			}
 
 			n++

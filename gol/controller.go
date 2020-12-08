@@ -60,6 +60,8 @@ func sendKeys(c distributorChannels, conn *net.Conn, keyTurn chan string) {
 		}
 	}
 }
+
+//Send the event to IO in order to save a PGM
 func saveTheWorld(c distributorChannels, p myParameters) {
 	c.ioCommand <- ioOutput
 	c.ioFilename <- strings.Join([]string{strconv.Itoa(p.ImageWidth), strconv.Itoa(p.ImageHeight), strconv.Itoa(p.Turns)}, "x")
@@ -72,18 +74,17 @@ func saveTheWorld(c distributorChannels, p myParameters) {
 func read(c distributorChannels, conn *net.Conn, keyTurn chan string) {
 	reader := bufio.NewReader(*conn)
 	for {
+		//FILTER FOR TCP MESSAGES
 		msg, err := reader.ReadString('\n')
-		if err != nil {
+		if err != nil || len(msg) == 1 {
 			continue
 		}
-		if len(msg) == 1 {
-			continue
-		}
+		//If the message contains the matrix to be save
 		if msg[1] == 'm' && msg[2] == 'a' && msg[3] == 'p' {
-
 			p := stringToMatrix(msg)
 			saveTheWorld(c, p)
 
+			//If the message is related to pressed keys
 		} else if msg[0] == 'k' && msg[1] == 'e' && msg[2] == 'y' {
 
 			var state State = 0
@@ -104,24 +105,25 @@ func read(c distributorChannels, conn *net.Conn, keyTurn chan string) {
 				turn,
 				state,
 			}
-			//CELLFLIPPED RECEIVED
+			////If the message contains data for the AliveCellsCount event
 		} else if msg[0] == 'a' && msg[1] == 'c' && msg[2] == 'c' {
 			i := 3
 			turn := 0
-			howManyAreComplete := 0
+			howManyAreAlive := 0
 			for i < len(msg) && msg[i] != ' ' {
 				turn = turn*10 + (int(msg[i]) - '0')
 				i++
 			}
 			i++
 			for i < len(msg) && msg[i] != '\n' {
-				howManyAreComplete = howManyAreComplete*10 + (int(msg[i]) - '0')
+				howManyAreAlive = howManyAreAlive*10 + (int(msg[i]) - '0')
 				i++
 			}
 			c.events <- AliveCellsCount{
 				turn,
-				howManyAreComplete,
+				howManyAreAlive,
 			}
+			//If the message contains data for the CellFlipped event
 		} else if msg[0] == 'c' && msg[1] == 'f' {
 			i := 2
 			x := 0
@@ -141,10 +143,6 @@ func read(c distributorChannels, conn *net.Conn, keyTurn chan string) {
 				turn = turn*10 + (int(msg[i]) - '0')
 				i++
 			}
-
-			fmt.Println("x:", x)
-			fmt.Println("y:", y)
-			fmt.Println("turn:", turn)
 			c.events <- CellFlipped{
 				turn,
 				util.Cell{
@@ -152,7 +150,7 @@ func read(c distributorChannels, conn *net.Conn, keyTurn chan string) {
 					Y: y,
 				},
 			}
-			//TURN COMPLETE
+			//If the message reports a TurnComplete event
 		} else if msg[0] == 't' && msg[1] == 'c' {
 			i := 2
 			turn := 0
@@ -163,7 +161,7 @@ func read(c distributorChannels, conn *net.Conn, keyTurn chan string) {
 			c.events <- TurnComplete{
 				turn,
 			}
-			//FINAL TURN COMPLETE
+			//If the message reports a FinalTurnComplete event + how many cells are alive
 		} else if msg[0] == 'f' && msg[1] == 't' && msg[2] == 'c' {
 			i := 3
 			turn := 0
@@ -213,9 +211,10 @@ func numberToString(nr int) string {
 	return strconv.Itoa(nr)
 }
 
+//Convert matrix and parameters to one string in order to be sent through TCP
 func convertToString(world [][]byte, p Params) string {
-	var data []string
 
+	var data []string
 	hs := numberToString(p.ImageHeight)
 	ws := numberToString(p.ImageWidth)
 	turn := numberToString(p.Turns)
@@ -248,6 +247,8 @@ func convertToString(world [][]byte, p Params) string {
 
 	return strings.Join(data, "")
 }
+
+//Parse the incoming string to the create computable variables
 func stringToMatrix(msg string) myParameters {
 	clientid := (int(msg[0]) - '0')
 	i := 4
@@ -311,8 +312,9 @@ func stringToMatrix(msg string) myParameters {
 // distributor divides the work between workers and interacts with other goroutines.
 func controller(p Params, c distributorChannels) {
 
-	conn, _ := net.Dial("tcp", "34.230.77.219:8080")
-
+	//conn, _ := net.Dial("tcp", "34.230.77.219:8080")
+	//LOCALHOST
+	conn, _ := net.Dial("tcp", "127.0.0.1:8080")
 	world := make([][]byte, p.ImageHeight)
 	for i := range world {
 		world[i] = make([]byte, p.ImageWidth)
@@ -337,13 +339,13 @@ func controller(p Params, c distributorChannels) {
 			}
 		}
 	}
-
+	//Send Initial board to the engine
 	text := convertToString(world, p)
-
 	fmt.Fprintf(conn, text)
+	//Start a goroutine for keypresses
 	keyTurn := make(chan string)
-
 	go sendKeys(c, &conn, keyTurn)
+	//Listen to all incoming messages
 	read(c, &conn, keyTurn)
 
 	// Make sure that the Io has finished any output before exiting.
