@@ -244,7 +244,7 @@ func read(conn *net.Conn) {
 			newWorldString := convertToString(newWorld, p)
 			fmt.Fprintf(*conn, newWorldString)
 		}
-		if line == "kshutDown\n" {
+		if line == "keyshutDown\n" {
 			fmt.Println("Shutting Down")
 			os.Exit(3)
 		}
