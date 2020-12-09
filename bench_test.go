@@ -13,9 +13,15 @@ func BenchmarkGol(b *testing.B) {
 
 	os.Stdout = nil // Disable all program output apart from benchmark results
 	tests := []gol.Params{
+<<<<<<< HEAD
 		//{ImageWidth: 16, ImageHeight: 16},
 		{ImageWidth: 64, ImageHeight: 64},
 		//{ImageWidth: 5120, ImageHeight: 5120},
+=======
+		{ImageWidth: 16, ImageHeight: 16},
+	//	{ImageWidth: 64, ImageHeight: 64},
+		//	{ImageWidth: 512, ImageHeight: 512},
+>>>>>>> 3d03a6872e74ed59fe2628bc987bc3388692cdc2
 	}
 	for _, p := range tests {
 		for _, turns := range []int{100} {
