@@ -37,20 +37,20 @@ func sendKeys(c distributorChannels, conn *net.Conn, keyTurn chan string) {
 		case key := <-c.keyPressed:
 			if key == 'p' {
 				fmt.Println("Pause key sent to server...")
-				text := "kpauseTheGame\n"
+				text := "keypauseTheGame\n"
 				fmt.Fprintf(*conn, text)
 			} else if key == 's' {
 				fmt.Println("Save key sent to server...")
-				text := "ksaveTheGame\n"
+				text := "keysaveTheGame\n"
 				fmt.Fprintf(*conn, text)
 
 			} else if key == 'q' {
 				fmt.Println("Quit key sent to server...")
-				text := "kquitTheGame\n"
+				text := "keyquitTheGame\n"
 				fmt.Fprintf(*conn, text)
 			} else if key == 'k' {
 				fmt.Println("Shuting down all components...")
-				text := "kshutDown\n"
+				text := "keyshutDown\n"
 				fmt.Fprintf(*conn, text)
 				time.Sleep(3 * time.Second)
 				os.Exit(3)

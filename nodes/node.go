@@ -139,7 +139,7 @@ func stringToMatrix(msg string) myParameters {
 }
 
 //Multithreading within each node
-func worker(wholeImage int, p myParameters, start int, end int, height int, outChannel chan byte) {
+func worker(done chan bool, wholeImage int, p myParameters, start int, end int, height int, outChannel chan byte) {
 
 	world := make([][]byte, p.ImageHeight)
 	for i := range world {
@@ -174,7 +174,7 @@ func worker(wholeImage int, p myParameters, start int, end int, height int, outC
 			}
 		}
 	}
-
+	done <- true
 	for i := start; i < end; i++ {
 		for j := 0; j < p.ImageWidth; j++ {
 			outChannel <- newWorld[i][j]
@@ -195,28 +195,37 @@ func computeWorld(conn *net.Conn, p myParameters) [][]byte {
 	workerHeight := (p.ImageHeight - 2) / p.Threads
 	outChannel := make([]chan byte, p.Threads)
 
+	done := make(chan bool, p.Threads)
 	//Split world in threads
 	for thread := 0; thread < p.Threads-1; thread++ {
 		outChannel[thread] = make(chan byte)
 		start := workerHeight*thread + 1
 		end := start + workerHeight
-		go worker(wholeImage, p, start, end, workerHeight, outChannel[thread])
-		//building the new World
-		for i := start; i < end; i++ {
-			for j := 0; j < p.ImageWidth; j++ {
-				newWorld[i][j] = <-outChannel[thread]
-			}
-		}
+		go worker(done, wholeImage, p, start, end, workerHeight, outChannel[thread])
 	}
 	//Special Case for last thread ( workerHeight + remainder )
 	outChannel[p.Threads-1] = make(chan byte)
 	start := workerHeight*(p.Threads-1) + 1
 	end := p.ImageHeight - 1
-	go worker(wholeImage, p, start, end, workerHeight, outChannel[p.Threads-1])
+	go worker(done, wholeImage, p, start, end, workerHeight, outChannel[p.Threads-1])
+
+	//Wait for every goroutine to end
+	for i := 0; i < p.Threads; i++ {
+		<-done
+	}
+
 	//building the new World
-	for i := start; i < end; i++ {
-		for j := 0; j < p.ImageWidth; j++ {
-			newWorld[i][j] = <-outChannel[p.Threads-1]
+	for thread := 0; thread < p.Threads; thread++ {
+		start := workerHeight*thread + 1
+		end := start + workerHeight
+		if thread == p.Threads-1 {
+			end = p.ImageHeight - 1
+		}
+
+		for i := start; i < end; i++ {
+			for j := 0; j < p.ImageWidth; j++ {
+				newWorld[i][j] = <-outChannel[thread]
+			}
 		}
 	}
 	return newWorld

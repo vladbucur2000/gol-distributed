@@ -260,35 +260,35 @@ func playTheGame(p myParameters, conn *net.Conn, KeyChannel chan string, clients
 		//If any key is pressed
 		case key := <-KeyChannel:
 			//The Pause key has been pressed
-			if key == "kpauseTheGame\n" {
+			if key == "keypauseTheGame\n" {
 				worldString := convertToString(workingWorld, p.ImageHeight, p.ImageWidth, p.Turns, p.Threads, 0)
 				fmt.Fprintln(*conn, worldString)
 				fmt.Fprintln(*conn, createStateChange(turn, "p"))
 				for {
 					//The Pause key has been pressed again, so start executing
 					key2 := <-KeyChannel
-					if key2 == "kpauseTheGame\n" {
+					if key2 == "keypauseTheGame\n" {
 						fmt.Fprintln(*conn, createStateChange(turn, "e"))
 						break
 					}
 				}
 				//The Save key has been pressed
-			} else if key == "ksaveTheGame\n" {
+			} else if key == "keysaveTheGame\n" {
 				//Send the actual board to the controller in order to be saved as a PGM
 				worldString := convertToString(workingWorld, p.ImageHeight, p.ImageWidth, p.Turns, p.Threads, 0)
 				fmt.Fprintln(*conn, worldString)
-			} else if key == "kquitTheGame\n" {
+			} else if key == "keyquitTheGame\n" {
 				//The Quit key has been pressed -> The actual board will be saved -> the controller disconnects
 				worldString := convertToString(workingWorld, p.ImageHeight, p.ImageWidth, p.Turns, p.Threads, 0)
 				fmt.Fprintln(*conn, worldString)
 				fmt.Fprintln(*conn, createStateChange(turn, "q"))
 				return
-			} else if key == "kshutDown\n" {
+			} else if key == "keyshutDown\n" {
 				//The ShutDown key has been pressed -> All the distributed components will shut down cleanly
 				worldString := convertToString(workingWorld, p.ImageHeight, p.ImageWidth, p.Turns, p.Threads, 0)
 				fmt.Fprintln(*conn, worldString)
 				fmt.Fprintln(*conn, createStateChange(turn, "q"))
-				msg := "kshutDown\n"
+				msg := "keyshutDown\n"
 				for i := 0; i < 4; i++ {
 					fmt.Fprintf(clients[i], msg)
 				}
