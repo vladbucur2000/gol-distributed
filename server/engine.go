@@ -353,7 +353,7 @@ func playTheGame(p myParameters, conn *net.Conn, KeyChannel chan string, clients
 		//Reports to controller that a turn has been completed
 		turnCompleteString := createTurnComplete(turn)
 		fmt.Fprintln(*conn, turnCompleteString)
-		myVisualiseMatrix(workingWorld, p.ImageWidth, p.ImageHeight)
+		//myVisualiseMatrix(workingWorld, p.ImageWidth, p.ImageHeight)
 
 	}
 	//Reports to controller that all turns have been completed and send the last board as well
