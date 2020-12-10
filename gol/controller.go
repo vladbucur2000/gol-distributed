@@ -48,6 +48,7 @@ func sendKeys(c distributorChannels, conn *net.Conn, keyTurn chan string) {
 				fmt.Println("Quit key sent to server...")
 				text := "keyquitTheGame\n"
 				fmt.Fprintf(*conn, text)
+				os.Exit(3)
 			} else if key == 'k' {
 				fmt.Println("Shuting down all components...")
 				text := "keyshutDown\n"
@@ -312,9 +313,9 @@ func stringToMatrix(msg string) myParameters {
 // distributor divides the work between workers and interacts with other goroutines.
 func controller(p Params, c distributorChannels) {
 
-	conn, _ := net.Dial("tcp", "18.209.49.188:8080")
+	//conn, _ := net.Dial("tcp", "18.209.49.188:8080")
 	//LOCALHOST
-	//conn, _ := net.Dial("tcp", "127.0.0.1:8080")
+	conn, _ := net.Dial("tcp", "127.0.0.1:8080")
 	world := make([][]byte, p.ImageHeight)
 	for i := range world {
 		world[i] = make([]byte, p.ImageWidth)
