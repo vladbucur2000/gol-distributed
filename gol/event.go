@@ -2,6 +2,7 @@ package gol
 
 import (
 	"fmt"
+
 	"uk.ac.bris.cs/gameoflife/util"
 )
 
@@ -74,7 +75,7 @@ func (state State) String() string {
 	case Paused:
 		return "Paused"
 	case Executing:
-		return "Executing"
+		return "Continuing"
 	case Quitting:
 		return "Quitting"
 	default:
