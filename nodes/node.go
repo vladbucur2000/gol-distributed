@@ -258,8 +258,8 @@ func write(conn *net.Conn) {
 }
 
 func main() {
-	conn, _ := net.Dial("tcp", "127.0.0.1:8080")
-	//conn, _ := net.Dial("tcp", "18.209.49.188:8080")
+	//conn, _ := net.Dial("tcp", "127.0.0.1:8080")
+	conn, _ := net.Dial("tcp", "3.93.194.94")
 	go read(&conn)
 	write(&conn)
 }
