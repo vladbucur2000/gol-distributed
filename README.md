@@ -1,6 +1,6 @@
 # CSA Coursework: Game of Life
 
-***In this repo you can find a **distributed system** which solves the task making use of multiple **AWS EC2 instances**.
+***In this repo you can find a **distributed system** which runs the Game of Life making use of multiple **AWS EC2 instances**.
 If you want to find more about this you can check **the second stage** presented in [the report](https://github.com/vladbucur2000/gol-distributed/blob/main/report-2.pdf).***
 
 
